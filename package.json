@@ -5,11 +5,16 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "db:migrate": "node scripts/migrate.mjs",
+    "seed:dev": "node scripts/seed-dev.mjs",
+    "invite:create": "node scripts/create-invitation.mjs"
   },
   "dependencies": {
+    "dotenv": "^17.4.2",
     "lucide-react": "^0.468.0",
     "next": "^15.2.0",
+    "postgres": "^3.4.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
