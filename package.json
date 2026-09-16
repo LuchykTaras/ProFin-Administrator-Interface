@@ -5,10 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "db:migrate": "node scripts/migrate.mjs",
-    "seed:dev": "node scripts/seed-dev.mjs",
-    "invite:create": "node scripts/create-invitation.mjs"
+    "start": "next start"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

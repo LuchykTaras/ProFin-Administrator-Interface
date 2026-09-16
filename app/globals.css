@@ -67,7 +67,7 @@ button { cursor: pointer; }
 
 .brand-bars {
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   gap: 3px;
   height: 27px;
 }
@@ -279,7 +279,7 @@ button { cursor: pointer; }
   bottom: 18px;
   height: 28px;
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   gap: 3px;
 }
 
@@ -859,4 +859,1477 @@ td {
   .inventory-full article { grid-template-columns: 1fr 1fr; }
   .access-card { grid-template-columns: 1fr; }
   .danger-button { grid-column: auto; }
+}
+
+/* ============================================
+ * PATCH 23
+ * REAL INTERFACE CONTEXT
+ * ============================================ */
+
+.selector-locked {
+  cursor: default;
+}
+
+
+.status-warning {
+  color: #a86500;
+}
+
+.status-warning .status-dot {
+  background: var(--orange);
+}
+
+
+.status-error {
+  color: #b02a2a;
+}
+
+.status-error .status-dot {
+  background: var(--red);
+}
+
+
+.status-neutral {
+  color: var(--muted);
+}
+
+.status-neutral .status-dot {
+  background: #9aa5a1;
+}
+
+
+.warning-text {
+  color: #a86500 !important;
+}
+
+
+/* --------------------------------------------
+ * Disabled domain actions
+ * -------------------------------------------- */
+
+.quick-action:disabled {
+  cursor: not-allowed;
+
+  opacity: .58;
+
+  transform: none;
+
+  box-shadow: none;
+}
+
+
+.quick-action:disabled:hover {
+  transform: none;
+
+  box-shadow: none;
+}
+
+
+/* --------------------------------------------
+ * Domain integration warning
+ * -------------------------------------------- */
+
+.integration-banner {
+  border:
+    1px solid #f1d49b;
+
+  background:
+    #fff9ec;
+
+  border-radius:
+    14px;
+
+  padding:
+    14px 16px;
+
+  display:
+    flex;
+
+  align-items:
+    flex-start;
+
+  gap:
+    11px;
+
+  color:
+    #855700;
+}
+
+
+.integration-banner > div {
+  display:
+    grid;
+
+  gap:
+    4px;
+}
+
+
+.integration-banner span {
+  color:
+    #8c7751;
+
+  font-size:
+    12px;
+
+  line-height:
+    1.5;
+}
+
+
+/* --------------------------------------------
+ * No mock / empty API state
+ * -------------------------------------------- */
+
+.data-empty-state {
+  min-height:
+    220px;
+
+  display:
+    flex;
+
+  flex-direction:
+    column;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  text-align:
+    center;
+
+  gap:
+    8px;
+
+  padding:
+    28px;
+
+  color:
+    var(--muted);
+}
+
+
+.data-empty-state strong {
+  color:
+    var(--text);
+}
+
+
+.data-empty-state span {
+  max-width:
+    460px;
+
+  font-size:
+    12px;
+
+  line-height:
+    1.55;
+}
+
+
+.data-empty-state.compact {
+  min-height:
+    170px;
+}
+
+
+.integration-list {
+  display:
+    grid;
+
+  gap:
+    13px;
+
+  padding:
+    8px 0 2px;
+}
+
+
+/* --------------------------------------------
+ * Initial session/bootstrap state
+ * -------------------------------------------- */
+
+.bootstrap-state {
+  min-height:
+    100vh;
+
+  display:
+    grid;
+
+  place-items:
+    center;
+
+  padding:
+    24px;
+
+  background:
+    var(--bg);
+}
+
+
+.bootstrap-card {
+  width:
+    min(
+      440px,
+      100%
+    );
+
+  display:
+    grid;
+
+  justify-items:
+    center;
+
+  gap:
+    10px;
+
+  text-align:
+    center;
+
+  padding:
+    34px;
+
+  border:
+    1px solid
+    var(--line);
+
+  border-radius:
+    var(--radius);
+
+  background:
+    var(--card);
+
+  box-shadow:
+    var(--shadow);
+
+  color:
+    var(--green-700);
+}
+
+
+.bootstrap-card h1 {
+  margin:
+    0;
+
+  color:
+    var(--text);
+}
+
+
+.bootstrap-card p {
+  margin:
+    0;
+
+  color:
+    var(--muted);
+
+  line-height:
+    1.55;
+}
+
+
+.bootstrap-card small {
+  color:
+    var(--muted);
+
+  line-height:
+    1.5;
+}
+
+
+.bootstrap-card.error {
+  color:
+    var(--red);
+}
+
+/* ============================================
+ * PATCH 23.1
+ * NOT CONNECTED STATUS FIX
+ * ============================================ */
+
+.status-pill.status-warning {
+  color: #a86500 !important;
+}
+
+.status-pill.status-warning .status-dot {
+  background: #f59e0b !important;
+}
+
+.warning-text {
+  color: #a86500 !important;
+}
+
+.api-grid .warning-text {
+  color: #a86500 !important;
+}
+
+.integration-list .status-warning {
+  color: #a86500 !important;
+}
+
+/* ============================================
+ * PATCH 24
+ * OPERATION FORM MODAL
+ * ============================================ */
+
+.operation-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 28px;
+
+  background:
+    rgba(11, 27, 24, 0.44);
+
+  backdrop-filter:
+    blur(5px);
+}
+
+
+.operation-modal {
+  width:
+    min(
+      1120px,
+      100%
+    );
+
+  max-height:
+    calc(100vh - 56px);
+
+  display: flex;
+  flex-direction: column;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    rgba(21, 86, 70, 0.16);
+
+  border-radius:
+    22px;
+
+  background:
+    #ffffff;
+
+  box-shadow:
+    0 26px 80px
+    rgba(0, 40, 31, 0.24);
+}
+
+
+/* --------------------------------------------
+ * HEADER
+ * -------------------------------------------- */
+
+.operation-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+
+  padding:
+    24px 26px 20px;
+
+  border-bottom:
+    1px solid
+    #e4ece9;
+}
+
+
+.operation-modal-header h2 {
+  margin:
+    3px 0 5px;
+
+  font-size:
+    25px;
+
+  line-height:
+    1.15;
+
+  color:
+    #10251f;
+}
+
+
+.operation-modal-header p {
+  margin: 0;
+
+  color:
+    #77857f;
+
+  font-size:
+    13px;
+}
+
+
+.operation-modal-eyebrow {
+  display: block;
+
+  font-size:
+    11px;
+
+  font-weight:
+    800;
+
+  letter-spacing:
+    0.1em;
+
+  text-transform:
+    uppercase;
+
+  color:
+    #12936f;
+}
+
+
+.operation-modal-close {
+  width: 38px;
+  height: 38px;
+
+  flex:
+    0 0 auto;
+
+  display: grid;
+  place-items: center;
+
+  border:
+    1px solid
+    #dfe8e5;
+
+  border-radius:
+    10px;
+
+  background:
+    #ffffff;
+
+  color:
+    #53645e;
+
+  cursor: pointer;
+
+  transition:
+    0.16s ease;
+}
+
+
+.operation-modal-close:hover {
+  background:
+    #f2f7f5;
+
+  color:
+    #0d765c;
+}
+
+
+/* --------------------------------------------
+ * DOMAIN WARNING
+ * -------------------------------------------- */
+
+.operation-domain-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+
+  margin:
+    18px 26px 0;
+
+  padding:
+    13px 15px;
+
+  border:
+    1px solid
+    #f0d59d;
+
+  border-radius:
+    12px;
+
+  background:
+    #fff9ed;
+
+  color:
+    #956300;
+}
+
+
+.operation-domain-warning > div {
+  display: grid;
+  gap: 3px;
+}
+
+
+.operation-domain-warning strong {
+  font-size:
+    13px;
+}
+
+
+.operation-domain-warning span {
+  color:
+    #876f43;
+
+  font-size:
+    12px;
+
+  line-height:
+    1.45;
+}
+
+
+/* --------------------------------------------
+ * BODY
+ * -------------------------------------------- */
+
+.operation-modal-body {
+  flex: 1;
+
+  overflow-y: auto;
+
+  padding:
+    22px 26px 28px;
+
+  display: grid;
+
+  gap: 22px;
+
+  background:
+    #f7faf9;
+}
+
+
+.operation-form-section {
+  padding:
+    20px;
+
+  border:
+    1px solid
+    #e1eae7;
+
+  border-radius:
+    16px;
+
+  background:
+    #ffffff;
+}
+
+
+.operation-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 18px;
+
+  margin-bottom:
+    18px;
+}
+
+
+.operation-section-heading h3 {
+  margin:
+    0 0 4px;
+
+  color:
+    #152722;
+
+  font-size:
+    17px;
+}
+
+
+.operation-section-heading p {
+  margin: 0;
+
+  color:
+    #7a8883;
+
+  font-size:
+    12px;
+
+  line-height:
+    1.45;
+}
+
+
+.operation-section-badge {
+  flex:
+    0 0 auto;
+
+  padding:
+    5px 9px;
+
+  border-radius:
+    999px;
+
+  background:
+    #e7f5f0;
+
+  color:
+    #11765c;
+
+  font-size:
+    11px;
+
+  font-weight:
+    700;
+}
+
+
+/* --------------------------------------------
+ * FIELDS
+ * -------------------------------------------- */
+
+.operation-fields-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  gap:
+    16px;
+}
+
+
+.operation-field {
+  display: grid;
+
+  gap:
+    7px;
+
+  min-width: 0;
+}
+
+
+.operation-field-full {
+  grid-column:
+    1 / -1;
+}
+
+
+.operation-field > span {
+  color:
+    #33443e;
+
+  font-size:
+    12px;
+
+  font-weight:
+    700;
+}
+
+
+.operation-field > small {
+  color:
+    #9aa5a1;
+
+  font-size:
+    10px;
+}
+
+
+.operation-input-shell,
+.operation-select-shell {
+  position: relative;
+
+  min-height:
+    44px;
+
+  display: flex;
+  align-items: center;
+
+  border:
+    1px solid
+    #dce6e3;
+
+  border-radius:
+    10px;
+
+  background:
+    #ffffff;
+}
+
+
+.operation-input-shell:focus-within {
+  border-color:
+    #2ca982;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(44, 169, 130, 0.11);
+}
+
+
+.operation-input-shell.with-icon {
+  padding-left:
+    12px;
+
+  gap:
+    8px;
+
+  color:
+    #7b8984;
+}
+
+
+.operation-input-shell input {
+  width:
+    100%;
+
+  min-width: 0;
+
+  height:
+    42px;
+
+  padding:
+    0 12px;
+
+  border: 0;
+
+  outline: 0;
+
+  background:
+    transparent;
+
+  color:
+    #182722;
+
+  font: inherit;
+}
+
+
+.operation-input-shell.with-icon input {
+  padding-left: 0;
+}
+
+
+.operation-select-shell select {
+  width:
+    100%;
+
+  height:
+    42px;
+
+  padding:
+    0 36px 0 12px;
+
+  appearance: none;
+
+  border: 0;
+
+  outline: 0;
+
+  background:
+    transparent;
+
+  color:
+    #89958f;
+
+  font: inherit;
+}
+
+
+.operation-select-shell svg {
+  position: absolute;
+
+  right: 12px;
+
+  pointer-events: none;
+
+  color:
+    #89958f;
+}
+
+
+.operation-field textarea {
+  min-height:
+    92px;
+
+  resize:
+    vertical;
+
+  padding:
+    11px 12px;
+
+  border:
+    1px solid
+    #dce6e3;
+
+  border-radius:
+    10px;
+
+  outline: 0;
+
+  background:
+    #ffffff;
+
+  color:
+    #182722;
+
+  font: inherit;
+}
+
+
+.operation-field textarea:focus {
+  border-color:
+    #2ca982;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(44, 169, 130, 0.11);
+}
+
+
+/* --------------------------------------------
+ * CONDITIONAL MODULES
+ * -------------------------------------------- */
+
+.operation-condition-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap:
+    13px;
+}
+
+
+.operation-condition-card {
+  position: relative;
+
+  display: grid;
+
+  grid-template-columns:
+    42px 1fr;
+
+  gap:
+    12px;
+
+  min-height:
+    150px;
+
+  padding:
+    15px;
+
+  border:
+    1px solid
+    #e1e9e6;
+
+  border-radius:
+    13px;
+
+  background:
+    #fafcfb;
+}
+
+
+.operation-condition-icon {
+  width:
+    42px;
+  height:
+    42px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius:
+    11px;
+
+  background:
+    #e4f4ef;
+
+  color:
+    #0e8a67;
+}
+
+
+.operation-condition-card strong {
+  color:
+    #1a2d27;
+
+  font-size:
+    13px;
+}
+
+
+.operation-condition-card p {
+  margin:
+    4px 0 8px;
+
+  max-width:
+    340px;
+
+  color:
+    #84918c;
+
+  font-size:
+    11px;
+
+  line-height:
+    1.4;
+}
+
+
+.operation-condition-card ul {
+  margin:
+    0;
+
+  padding-left:
+    17px;
+
+  color:
+    #596a64;
+
+  font-size:
+    11px;
+
+  line-height:
+    1.65;
+}
+
+
+.operation-waiting-badge {
+  position: absolute;
+
+  right: 12px;
+  bottom: 12px;
+
+  padding:
+    4px 7px;
+
+  border-radius:
+    999px;
+
+  background:
+    #fff2d9;
+
+  color:
+    #9b6500;
+
+  font-size:
+    9px;
+
+  font-weight:
+    800;
+
+  text-transform:
+    uppercase;
+}
+
+
+/* --------------------------------------------
+ * CONTRACT NOTE
+ * -------------------------------------------- */
+
+.operation-contract-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+
+  padding:
+    14px 16px;
+
+  border:
+    1px solid
+    #cae8dd;
+
+  border-radius:
+    13px;
+
+  background:
+    #eef9f5;
+
+  color:
+    #138261;
+}
+
+
+.operation-contract-note > div {
+  display: grid;
+
+  gap: 3px;
+}
+
+
+.operation-contract-note strong {
+  font-size:
+    12px;
+}
+
+
+.operation-contract-note span {
+  color:
+    #57746a;
+
+  font-size:
+    11px;
+
+  line-height:
+    1.45;
+}
+
+
+/* --------------------------------------------
+ * FOOTER
+ * -------------------------------------------- */
+
+.operation-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 16px;
+
+  padding:
+    17px 26px;
+
+  border-top:
+    1px solid
+    #e1e9e6;
+
+  background:
+    #ffffff;
+}
+
+
+.operation-footer-state {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  color:
+    #8f6b23;
+
+  font-size:
+    11px;
+
+  font-weight:
+    700;
+}
+
+
+.operation-state-dot {
+  width: 8px;
+  height: 8px;
+
+  border-radius:
+    50%;
+
+  background:
+    #f4a51c;
+}
+
+
+.operation-state-dot.ready {
+  background:
+    #20a374;
+}
+
+
+.operation-footer-actions {
+  display: flex;
+
+  gap:
+    10px;
+}
+
+
+.operation-secondary-button,
+.operation-primary-button {
+  min-height:
+    40px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  padding:
+    0 16px;
+
+  border-radius:
+    10px;
+
+  font-weight:
+    750;
+
+  font-size:
+    12px;
+
+  cursor: pointer;
+
+  transition:
+    0.16s ease;
+}
+
+
+.operation-secondary-button {
+  border:
+    1px solid
+    #dbe5e2;
+
+  background:
+    #ffffff;
+
+  color:
+    #42534d;
+}
+
+
+.operation-secondary-button:hover {
+  background:
+    #f5f8f7;
+}
+
+
+.operation-primary-button {
+  border:
+    1px solid
+    #0f9470;
+
+  background:
+    #119873;
+
+  color:
+    #ffffff;
+}
+
+
+.operation-primary-button:hover:not(:disabled) {
+  background:
+    #0c7f60;
+}
+
+
+.operation-primary-button:disabled {
+  cursor:
+    not-allowed;
+
+  border-color:
+    #cbd7d3;
+
+  background:
+    #dce5e2;
+
+  color:
+    #8a9994;
+}
+
+
+/* --------------------------------------------
+ * RESPONSIVE
+ * -------------------------------------------- */
+
+@media (
+  max-width: 960px
+) {
+  .operation-fields-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+}
+
+
+@media (
+  max-width: 720px
+) {
+  .operation-modal-backdrop {
+    padding: 0;
+
+    align-items:
+      stretch;
+  }
+
+
+  .operation-modal {
+    max-height:
+      100vh;
+
+    border-radius: 0;
+
+    border: 0;
+  }
+
+
+  .operation-modal-header,
+  .operation-modal-body,
+  .operation-modal-footer {
+    padding-left:
+      18px;
+
+    padding-right:
+      18px;
+  }
+
+
+  .operation-fields-grid,
+  .operation-condition-grid {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  .operation-modal-footer {
+    align-items:
+      stretch;
+
+    flex-direction:
+      column;
+  }
+
+
+  .operation-footer-actions {
+    width:
+      100%;
+  }
+
+
+  .operation-secondary-button,
+  .operation-primary-button {
+    flex: 1;
+  }
+}
+
+/* ============================================
+ * PATCH 25
+ * SERVER-DRIVEN FORM STATES
+ * ============================================ */
+
+.operation-schema-state {
+  min-height:
+    360px;
+
+  display:
+    flex;
+
+  flex-direction:
+    column;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  gap:
+    8px;
+
+  padding:
+    32px;
+
+  text-align:
+    center;
+
+  color:
+    #6f7d78;
+}
+
+
+.operation-schema-state strong {
+  color:
+    #1a2b25;
+
+  font-size:
+    14px;
+}
+
+
+.operation-schema-state span {
+  max-width:
+    440px;
+
+  font-size:
+    12px;
+
+  line-height:
+    1.5;
+}
+
+
+.operation-schema-spinner {
+  color:
+    #119873;
+
+  animation:
+    operation-schema-spin
+    0.8s
+    linear
+    infinite;
+}
+
+
+@keyframes operation-schema-spin {
+  to {
+    transform:
+      rotate(360deg);
+  }
+}
+
+
+.operation-schema-error {
+  color:
+    #b84635;
+}
+
+
+.operation-schema-retry {
+  min-height:
+    38px;
+
+  margin-top:
+    8px;
+
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  gap:
+    7px;
+
+  padding:
+    0 14px;
+
+  border:
+    1px solid
+    #d7e3df;
+
+  border-radius:
+    9px;
+
+  background:
+    #ffffff;
+
+  color:
+    #314740;
+
+  font-size:
+    12px;
+
+  font-weight:
+    700;
+
+  cursor:
+    pointer;
+}
+
+
+.operation-schema-retry:hover {
+  background:
+    #f3f8f6;
+}
+
+
+.operation-required-mark {
+  margin-left:
+    3px;
+
+  color:
+    #d14d3f;
+}
+
+
+.operation-field input:disabled,
+.operation-field textarea:disabled,
+.operation-field select:disabled {
+  cursor:
+    not-allowed;
+
+  color:
+    #96a29e;
+
+  background:
+    #f8faf9;
+}
+
+
+.operation-field input:disabled::placeholder,
+.operation-field textarea:disabled::placeholder {
+  color:
+    #adb7b3;
+}
+
+/* ===== QUICK ACTIONS: pastel card backgrounds ===== */
+/* Міняємо тільки фон карток. Значки і їхні кольори не чіпаємо. */
+
+.quick-grid > * {
+  border-radius: 18px;
+  border: 1px solid #dbe5df;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.quick-grid > *:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(16, 54, 42, 0.08);
+  border-color: #cfdcd5;
+}
+
+/* 1. Доходи */
+.quick-grid > *:nth-child(1) {
+  background: #eef8ee;
+}
+
+/* 2. Витрати */
+.quick-grid > *:nth-child(2) {
+  background: #f8f2e8;
+}
+
+/* 3. Фінансова діяльність */
+.quick-grid > *:nth-child(3) {
+  background: #eef4fb;
+}
+
+/* 4. Актив */
+.quick-grid > *:nth-child(4) {
+  background: #f3effb;
+}
+
+/* 5. Вакцина */
+.quick-grid > *:nth-child(5) {
+  background: #edf8f4;
+}
+
+/* 6. Пакет */
+.quick-grid > *:nth-child(6) {
+  background: #faf5e8;
+}
+
+/* 7. Інкасація */
+.quick-grid > *:nth-child(7) {
+  background: #eef7fb;
+}
+
+/* 8. Скасувати операцію */
+.cash-cancel-action .quick-action {
+  background: #f4eef5;
+  border-color: #e3dbe8;
+}
+
+.cash-cancel-action .quick-action:disabled {
+  background: #f4eef5;
+  border-color: #e3dbe8;
+  opacity: 0.72;
 }

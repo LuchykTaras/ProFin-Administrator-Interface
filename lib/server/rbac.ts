@@ -22,7 +22,10 @@ export type Permission =
 
 
 const ROLE_PERMISSIONS:
-Record<UserRole, ReadonlySet<Permission>> = {
+Record<
+  UserRole,
+  ReadonlySet<Permission>
+> = {
   CASHIER: new Set([
     "operation:create",
     "journal:read",
@@ -63,19 +66,35 @@ Record<UserRole, ReadonlySet<Permission>> = {
 };
 
 
+export function hasPermission(
+  context: SessionContext,
+  permission: Permission
+): boolean {
+  return ROLE_PERMISSIONS[
+    context.role
+  ].has(
+    permission
+  );
+}
+
+
 export function assertPermission(
   context: SessionContext,
   permission: Permission
 ): void {
   const allowed =
-    ROLE_PERMISSIONS[
-      context.role
-    ].has(permission);
+    hasPermission(
+      context,
+      permission
+    );
 
   if (!allowed) {
     throw new AppError({
       status: 403,
-      code: "FORBIDDEN",
+
+      code:
+        "FORBIDDEN",
+
       userMessage:
         "Недостатньо прав для цієї дії."
     });
