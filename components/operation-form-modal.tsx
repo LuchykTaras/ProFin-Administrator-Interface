@@ -16,8 +16,10 @@ import {
 } from "lucide-react";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState
 } from "react";
 
@@ -26,10 +28,13 @@ import {
 } from "@/lib/client/api-client";
 
 import {
+  createOperation,
   getOperationFormSchema
 } from "@/lib/client/operations-api";
 
 import type {
+  CreateOperationInput,
+  CreateOperationResult,
   OperationDraft,
   OperationFormField,
   OperationFormSchema,
@@ -48,6 +53,341 @@ type OperationFormModalProps = {
   onClose:
     () => void;
 };
+
+
+type SchemaSelection = {
+  operationType:
+    string | null;
+
+  category:
+    string | null;
+
+  article:
+    string | null;
+};
+
+
+/*
+ * PATCH 41
+ *
+ * Перетворення ключів
+ * server-driven форми
+ * у write-contract.
+ *
+ * Важливо:
+ *
+ * schema:
+ *   patient
+ *
+ * create operation:
+ *   patientId
+ */
+const CREATE_OPERATION_FIELD_MAP = {
+  date:
+    "date",
+
+  account:
+    "account",
+
+  transferTo:
+    "transferTo",
+
+  type:
+    "type",
+
+  category:
+    "category",
+
+  article:
+    "article",
+
+  doctor:
+    "doctor",
+
+  patient:
+    "patientId",
+
+  unitPrice:
+    "unitPrice",
+
+  quantity:
+    "quantity",
+
+  amount:
+    "amount",
+
+  comment:
+    "comment",
+
+  packageStart:
+    "packageStart",
+
+  packageDuration:
+    "packageDuration",
+
+  packageMonthlyAmount:
+    "packageMonthlyAmount",
+
+  packageAccrualStart:
+    "packageAccrualStart",
+
+  vaccineName:
+    "vaccineName",
+
+  vaccinePatient:
+    "patientId",
+
+  vaccineQty:
+    "vaccineQty",
+
+  vaccineCost:
+    "vaccineCost",
+
+  vaccineSeries:
+    "vaccineSeries",
+
+  storedVaccineId:
+    "storedVaccineId",
+
+  assetName:
+    "assetName",
+
+  assetCategory:
+    "assetCategory",
+
+  assetAmortization:
+    "assetAmortization",
+
+  assetStartDate:
+    "assetStartDate",
+
+  inventoryName:
+    "inventoryName",
+
+  inventorySeries:
+    "inventorySeries",
+
+  inventoryExpiryDate:
+    "inventoryExpiryDate",
+
+  inventorySupplier:
+    "inventorySupplier"
+} as const;
+
+
+/*
+ * Поля, які повинні
+ * передаватися числами.
+ */
+const NUMERIC_OPERATION_FIELDS =
+  new Set<string>([
+    "unitPrice",
+    "quantity",
+    "amount",
+    "packageMonthlyAmount",
+    "vaccineQty",
+    "vaccineCost",
+    "assetAmortization"
+  ]);
+
+
+/*
+ * PATCH 41
+ *
+ * Формуємо payload ТІЛЬКИ
+ * з полів поточного
+ * видимого domain-сценарію.
+ *
+ * Це критично.
+ *
+ * Наприклад:
+ *
+ * Доходи
+ *   НЕ отримують:
+ *
+ *   assetName
+ *   assetCategory
+ *   vaccineName
+ *   inventoryName
+ *
+ * навіть якщо domain schema
+ * раніше мала defaultValue
+ * для інших сценаріїв.
+ *
+ * Trusted context:
+ *
+ * projectId
+ * locationId
+ * activeYear
+ * spreadsheetId
+ * actor
+ * role
+ *
+ * browser НЕ передає.
+ */
+function buildCreateOperationInput(
+  draft:
+    OperationDraft,
+
+  schema:
+    OperationFormSchema,
+
+  initialOperationType:
+    string | null
+): CreateOperationInput {
+  const operation:
+    Record<
+      string,
+      unknown
+    > =
+    {};
+
+
+  /*
+   * Збираємо лише ключі полів,
+   * які реально належать
+   * до поточної видимої schema.
+   */
+  const activeFieldKeys =
+    new Set<string>();
+
+
+  for (
+    const section
+    of schema.sections
+  ) {
+    if (
+      !section.visible
+    ) {
+      continue;
+    }
+
+
+    for (
+      const field
+      of section.fields
+    ) {
+      if (
+        !field.visible
+      ) {
+        continue;
+      }
+
+
+      activeFieldKeys.add(
+        field.key
+      );
+    }
+  }
+
+
+  for (
+    const [
+      draftKey,
+      operationKey
+    ]
+    of Object.entries(
+      CREATE_OPERATION_FIELD_MAP
+    )
+  ) {
+    /*
+     * Поле не належить
+     * до активного сценарію.
+     *
+     * У POST його
+     * НЕ передаємо.
+     */
+    if (
+      !activeFieldKeys.has(
+        draftKey
+      )
+    ) {
+      continue;
+    }
+
+
+    const rawValue =
+      draft[
+        draftKey as keyof
+          OperationDraft
+      ];
+
+
+    if (
+      rawValue ===
+        undefined ||
+      rawValue ===
+        null ||
+      rawValue ===
+        ""
+    ) {
+      continue;
+    }
+
+
+    if (
+      NUMERIC_OPERATION_FIELDS.has(
+        operationKey
+      )
+    ) {
+      const normalizedValue =
+        typeof rawValue ===
+          "string"
+          ? rawValue
+              .replace(
+                ",",
+                "."
+              )
+              .trim()
+          : rawValue;
+
+
+      const numericValue =
+        Number(
+          normalizedValue
+        );
+
+
+      if (
+        Number.isFinite(
+          numericValue
+        )
+      ) {
+        operation[
+          operationKey
+        ] =
+          numericValue;
+
+        continue;
+      }
+    }
+
+
+    operation[
+      operationKey
+    ] =
+      rawValue;
+  }
+
+
+  /*
+   * Якщо type не знаходиться
+   * в draft, використовуємо
+   * тип, з якого була
+   * відкрита модалка.
+   */
+  if (
+    !operation.type &&
+    initialOperationType
+  ) {
+    operation.type =
+      initialOperationType;
+  }
+
+
+  return operation as
+    CreateOperationInput;
+}
 
 
 function ConditionalIcon({
@@ -105,7 +445,8 @@ function ConditionalIcon({
 function FieldControl({
   field,
   value,
-  onChange
+  onChange,
+  locked = false
 }: {
   field:
     OperationFormField;
@@ -117,8 +458,12 @@ function FieldControl({
     (
       value: string
     ) => void;
+
+  locked?:
+    boolean;
 }) {
   const disabled =
+    locked ||
     !field.enabled;
 
 
@@ -160,7 +505,8 @@ function FieldControl({
             {
               field.placeholder ??
               (
-                disabled
+                disabled &&
+                !locked
                   ? "Очікує domain schema"
                   : "Оберіть значення"
               )
@@ -200,7 +546,7 @@ function FieldControl({
 
   if (
     field.kind ===
-    "textarea"
+      "textarea"
   ) {
     return (
       <textarea
@@ -231,7 +577,7 @@ function FieldControl({
 
   if (
     field.kind ===
-    "readonly"
+      "readonly"
   ) {
     return (
       <div
@@ -324,7 +670,8 @@ function FieldControl({
 function FormSection({
   section,
   draft,
-  onFieldChange
+  onFieldChange,
+  locked = false
 }: {
   section:
     OperationFormSection;
@@ -340,6 +687,9 @@ function FormSection({
       value:
         string
     ) => void;
+
+  locked?:
+    boolean;
 }) {
   const fields =
     section
@@ -365,6 +715,7 @@ function FormSection({
               section.title
             }
           </h3>
+
 
           {
             section.description &&
@@ -460,6 +811,10 @@ function FormSection({
                       value
                     }
 
+                    locked={
+                      locked
+                    }
+
                     onChange={
                       nextValue =>
                         onFieldChange(
@@ -546,23 +901,85 @@ export function OperationFormModal({
     );
 
 
-  useEffect(
-    () => {
-      if (
-        !open
-      ) {
-        return;
-      }
+  const [
+    submitting,
+    setSubmitting
+  ] =
+    useState(
+      false
+    );
 
 
-      const controller =
-        new AbortController();
+  const [
+    submitError,
+    setSubmitError
+  ] =
+    useState(
+      ""
+    );
 
 
-      async function loadSchema() {
+  const [
+    submitResult,
+    setSubmitResult
+  ] =
+    useState<
+      CreateOperationResult |
+      null
+    >(
+      null
+    );
+
+
+  const [
+    submitReplayed,
+    setSubmitReplayed
+  ] =
+    useState(
+      false
+    );
+
+
+  /*
+   * Захист від race condition
+   * між schema-запитами.
+   */
+  const schemaRequestSequence =
+    useRef(
+      0
+    );
+
+
+  /*
+   * Один idempotency key
+   * на одну версію draft.
+   */
+  const idempotencyKeyRef =
+    useRef<
+      string |
+      null
+    >(
+      null
+    );
+
+
+  const loadSchemaForSelection =
+    useCallback(
+      async (
+        selection:
+          SchemaSelection,
+
+        signal?:
+          AbortSignal
+      ) => {
+        const requestSequence =
+          ++schemaRequestSequence.current;
+
+
         setLoading(
           true
         );
+
 
         setError(
           ""
@@ -573,17 +990,22 @@ export function OperationFormModal({
           const nextSchema =
             await getOperationFormSchema({
               operationType:
-                initialOperationType,
+                selection.operationType,
 
-              signal:
-                controller.signal
+              category:
+                selection.category,
+
+              article:
+                selection.article,
+
+              signal
             });
 
 
           if (
-            controller
-              .signal
-              .aborted
+            signal?.aborted ||
+            requestSequence !==
+              schemaRequestSequence.current
           ) {
             return;
           }
@@ -592,13 +1014,14 @@ export function OperationFormModal({
           setSchema(
             nextSchema
           );
+
         } catch (
           loadError
         ) {
           if (
-            controller
-              .signal
-              .aborted
+            signal?.aborted ||
+            requestSequence !==
+              schemaRequestSequence.current
           ) {
             return;
           }
@@ -621,21 +1044,101 @@ export function OperationFormModal({
               "Не вдалося отримати структуру форми."
             )
           );
+
         } finally {
           if (
-            !controller
-              .signal
-              .aborted
+            !signal?.aborted &&
+            requestSequence ===
+              schemaRequestSequence.current
           ) {
             setLoading(
               false
             );
           }
         }
+      },
+      []
+    );
+
+
+  /*
+   * При відкритті нової модалки
+   * очищаємо стан попередньої.
+   */
+  useEffect(
+    () => {
+      if (
+        !open
+      ) {
+        return;
       }
 
 
-      void loadSchema();
+      setDraft(
+        {}
+      );
+
+
+      setSubmitError(
+        ""
+      );
+
+
+      setSubmitResult(
+        null
+      );
+
+
+      setSubmitReplayed(
+        false
+      );
+
+
+      setSubmitting(
+        false
+      );
+
+
+      idempotencyKeyRef.current =
+        null;
+    },
+    [
+      open,
+      initialOperationType
+    ]
+  );
+
+
+  /*
+   * INITIAL SCHEMA.
+   */
+  useEffect(
+    () => {
+      if (
+        !open
+      ) {
+        return;
+      }
+
+
+      const controller =
+        new AbortController();
+
+
+      void loadSchemaForSelection(
+        {
+          operationType:
+            initialOperationType,
+
+          category:
+            null,
+
+          article:
+            null
+        },
+
+        controller.signal
+      );
 
 
       return () => {
@@ -645,11 +1148,16 @@ export function OperationFormModal({
     [
       open,
       reloadKey,
-      initialOperationType
+      initialOperationType,
+      loadSchemaForSelection
     ]
   );
 
 
+  /*
+   * Нова schema не повинна
+   * стирати вже введені поля.
+   */
   useEffect(
     () => {
       if (
@@ -659,34 +1167,54 @@ export function OperationFormModal({
       }
 
 
-      const defaults:
-        OperationDraft =
-        {};
-
-
-      for (
-        const section
-        of schema.sections
-      ) {
-        for (
-          const field
-          of section.fields
-        ) {
-          if (
-            field.defaultValue !==
-            undefined
-          ) {
-            defaults[
-              field.key
-            ] =
-              field.defaultValue;
-          }
-        }
-      }
-
-
       setDraft(
-        defaults
+        current => {
+          const nextDraft:
+            OperationDraft =
+            {};
+
+
+          for (
+            const section
+            of schema.sections
+          ) {
+            for (
+              const field
+              of section.fields
+            ) {
+              if (
+                Object.prototype
+                  .hasOwnProperty.call(
+                    current,
+                    field.key
+                  )
+              ) {
+                nextDraft[
+                  field.key
+                ] =
+                  current[
+                    field.key
+                  ];
+
+                continue;
+              }
+
+
+              if (
+                field.defaultValue !==
+                undefined
+              ) {
+                nextDraft[
+                  field.key
+                ] =
+                  field.defaultValue;
+              }
+            }
+          }
+
+
+          return nextDraft;
+        }
       );
     },
     [
@@ -695,6 +1223,10 @@ export function OperationFormModal({
   );
 
 
+  /*
+   * ESC закриває форму,
+   * але не під час POST.
+   */
   useEffect(
     () => {
       if (
@@ -710,7 +1242,8 @@ export function OperationFormModal({
       ) {
         if (
           event.key ===
-          "Escape"
+            "Escape" &&
+          !submitting
         ) {
           onClose();
         }
@@ -740,7 +1273,8 @@ export function OperationFormModal({
     },
     [
       open,
-      onClose
+      onClose,
+      submitting
     ]
   );
 
@@ -778,6 +1312,58 @@ export function OperationFormModal({
     );
 
 
+  /*
+   * Перевіряємо required-поля.
+   */
+  const requiredFieldsComplete =
+    useMemo(
+      () => {
+        for (
+          const section
+          of visibleSections
+        ) {
+          for (
+            const field
+            of section.fields
+          ) {
+            if (
+              !field.visible ||
+              !field.required
+            ) {
+              continue;
+            }
+
+
+            const value =
+              draft[
+                field.key
+              ] ??
+              field.defaultValue ??
+              "";
+
+
+            if (
+              String(
+                value
+              )
+                .trim() ===
+              ""
+            ) {
+              return false;
+            }
+          }
+        }
+
+
+        return true;
+      },
+      [
+        visibleSections,
+        draft
+      ]
+    );
+
+
   if (
     !open
   ) {
@@ -785,6 +1371,15 @@ export function OperationFormModal({
   }
 
 
+  /*
+   * type
+   *   ↓
+   * category
+   *   ↓
+   * article
+   *
+   * викликають dependent schema.
+   */
   function changeField(
     field:
       OperationFormField,
@@ -792,22 +1387,238 @@ export function OperationFormModal({
     value:
       string
   ) {
-    setDraft(
-      current => ({
-        ...current,
+    if (
+      submitting
+    ) {
+      return;
+    }
+
+
+    /*
+     * Будь-яка зміна draft
+     * означає нову операцію,
+     * тому старий idempotency key
+     * більше не використовуємо.
+     */
+    idempotencyKeyRef.current =
+      null;
+
+
+    setSubmitError(
+      ""
+    );
+
+
+    setSubmitResult(
+      null
+    );
+
+
+    setSubmitReplayed(
+      false
+    );
+
+
+    const nextDraft:
+      OperationDraft = {
+        ...draft,
 
         [field.key]:
           value
-      })
+      };
+
+
+    if (
+      field.key ===
+      "type"
+    ) {
+      nextDraft.category =
+        "";
+
+      nextDraft.article =
+        "";
+    }
+
+
+    if (
+      field.key ===
+      "category"
+    ) {
+      nextDraft.article =
+        "";
+    }
+
+
+    setDraft(
+      nextDraft
     );
+
+
+    if (
+      field.key !==
+        "type" &&
+      field.key !==
+        "category" &&
+      field.key !==
+        "article"
+    ) {
+      return;
+    }
+
+
+    const operationType =
+      (
+        field.key ===
+          "type"
+          ? value
+          : String(
+              nextDraft.type ??
+              initialOperationType ??
+              ""
+            )
+      )
+        .trim() ||
+      null;
+
+
+    const category =
+      String(
+        nextDraft.category ??
+        ""
+      )
+        .trim() ||
+      null;
+
+
+    const article =
+      String(
+        nextDraft.article ??
+        ""
+      )
+        .trim() ||
+      null;
+
+
+    void loadSchemaForSelection({
+      operationType,
+      category,
+      article
+    });
   }
 
 
   const canSubmit =
     Boolean(
       domainReady &&
-      schema?.canSubmit
+      schema?.canSubmit &&
+      requiredFieldsComplete &&
+      !loading &&
+      !submitting &&
+      !submitResult
     );
+
+
+  /*
+   * PATCH 41
+   *
+   * Фактичне проведення.
+   */
+  async function submitOperation() {
+    if (
+      !canSubmit ||
+      submitting ||
+      !schema
+    ) {
+      return;
+    }
+
+
+    setSubmitting(
+      true
+    );
+
+
+    setSubmitError(
+      ""
+    );
+
+
+    /*
+     * Один key на одну
+     * незмінену версію draft.
+     */
+    if (
+      !idempotencyKeyRef.current
+    ) {
+      idempotencyKeyRef.current =
+        `profin-web-${crypto.randomUUID()}`;
+    }
+
+
+    try {
+      /*
+       * PATCH 41:
+       *
+       * Передаємо schema
+       * у builder.
+       *
+       * Тепер builder знає,
+       * які поля реально
+       * належать до поточного
+       * domain-сценарію.
+       */
+      const operation =
+        buildCreateOperationInput(
+          draft,
+          schema,
+          initialOperationType
+        );
+
+
+      const result =
+        await createOperation({
+          operation,
+
+          idempotencyKey:
+            idempotencyKeyRef.current
+        });
+
+
+      setSubmitResult(
+        result.operation
+      );
+
+
+      setSubmitReplayed(
+        result.idempotencyReplayed
+      );
+
+    } catch (
+      submitOperationError
+    ) {
+      /*
+       * Не робимо console.error
+       * для очікуваної API-відмови,
+       * щоб Next dev overlay
+       * не перекривав форму.
+       *
+       * Помилку показуємо
+       * безпосередньо у UI.
+       */
+      setSubmitError(
+        getApiErrorMessage(
+          submitOperationError,
+
+          "Не вдалося провести операцію."
+        )
+      );
+
+    } finally {
+      setSubmitting(
+        false
+      );
+    }
+  }
 
 
   return (
@@ -820,6 +1631,13 @@ export function OperationFormModal({
 
       onMouseDown={
         event => {
+          if (
+            submitting
+          ) {
+            return;
+          }
+
+
           if (
             event.target ===
             event.currentTarget
@@ -883,6 +1701,10 @@ export function OperationFormModal({
 
             onClick={
               onClose
+            }
+
+            disabled={
+              submitting
             }
 
             aria-label=
@@ -982,6 +1804,7 @@ export function OperationFormModal({
                   }
                 </span>
 
+
                 <button
                   type="button"
 
@@ -1008,6 +1831,71 @@ export function OperationFormModal({
 
 
           {
+            submitError &&
+            (
+              <div
+                className=
+                  "operation-schema-state operation-schema-error"
+              >
+                <AlertTriangle
+                  size={28}
+                />
+
+                <strong>
+                  Операцію не проведено
+                </strong>
+
+                <span>
+                  {
+                    submitError
+                  }
+                </span>
+              </div>
+            )
+          }
+
+
+          {
+            submitResult &&
+            (
+              <div
+                className=
+                  "operation-schema-state"
+              >
+                <CheckCircle2
+                  size={30}
+                />
+
+                <strong>
+                  Операцію проведено
+                </strong>
+
+                <span>
+                  ID операції:{" "}
+                  {
+                    submitResult
+                      .operationId
+                  }
+                </span>
+
+
+                {
+                  submitReplayed &&
+                  (
+                    <small>
+                      Сервер повернув
+                      уже проведену
+                      операцію за тим
+                      самим idempotency key.
+                    </small>
+                  )
+                }
+              </div>
+            )
+          }
+
+
+          {
             !loading &&
             !error &&
             schema &&
@@ -1027,6 +1915,13 @@ export function OperationFormModal({
 
                         draft={
                           draft
+                        }
+
+                        locked={
+                          submitting ||
+                          Boolean(
+                            submitResult
+                          )
                         }
 
                         onFieldChange={
@@ -1178,19 +2073,31 @@ export function OperationFormModal({
           >
             <span
               className={
+                submitResult ||
                 canSubmit
                   ? "operation-state-dot ready"
                   : "operation-state-dot"
               }
             />
 
+
             {
-              schema?.unavailableReason ??
-              (
-                canSubmit
-                  ? "Форма готова"
-                  : "Очікує domain adapter"
-              )
+              submitResult
+                ? `Операцію проведено — ${submitResult.operationId}`
+                : submitError
+                  ? "Помилка проведення"
+                  : submitting
+                    ? "Проводимо операцію…"
+                    : schema?.unavailableReason ??
+                      (
+                        canSubmit
+                          ? "Форма готова"
+                          : loading
+                            ? "Оновлення domain schema"
+                            : !requiredFieldsComplete
+                              ? "Заповніть обов’язкові поля"
+                              : "Очікує domain adapter"
+                      )
             }
           </div>
 
@@ -1208,8 +2115,16 @@ export function OperationFormModal({
               onClick={
                 onClose
               }
+
+              disabled={
+                submitting
+              }
             >
-              Скасувати
+              {
+                submitResult
+                  ? "Закрити"
+                  : "Скасувати"
+              }
             </button>
 
 
@@ -1222,12 +2137,36 @@ export function OperationFormModal({
               disabled={
                 !canSubmit
               }
-            >
-              <Save
-                size={18}
-              />
 
-              Провести операцію
+              onClick={
+                submitOperation
+              }
+            >
+              {
+                submitting
+                  ? (
+                      <LoaderCircle
+                        className=
+                          "operation-schema-spinner"
+
+                        size={18}
+                      />
+                    )
+                  : (
+                      <Save
+                        size={18}
+                      />
+                    )
+              }
+
+
+              {
+                submitResult
+                  ? "Проведено"
+                  : submitting
+                    ? "Проводимо…"
+                    : "Провести операцію"
+              }
             </button>
           </div>
         </footer>
