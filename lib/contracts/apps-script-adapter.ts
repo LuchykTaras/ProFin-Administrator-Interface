@@ -3,7 +3,7 @@ export const APPS_SCRIPT_ADAPTER_PROTOCOL_VERSION =
 
 
 export const APPS_SCRIPT_ADAPTER_CLIENT_VERSION =
-  "PROFIN_NEXT_TRANSPORT_PATCH_34_2026" as const;
+  "PROFIN_NEXT_TRANSPORT_PATCH_35_2026" as const;
 
 
 export const APPS_SCRIPT_HMAC_SCHEME =
@@ -13,7 +13,11 @@ export const APPS_SCRIPT_HMAC_SCHEME =
 export type AppsScriptAdapterCommand =
   | "ping"
   | "idempotencyProbe"
-  | "createOperationWeb";
+  | "createOperationWeb"
+  | "createTransfer"
+  | "acceptTransfer"
+  | "cancelOperation"
+  | "closeShift";
 
 
 export type AppsScriptAdapterAuth = {
@@ -70,25 +74,14 @@ export type AppsScriptAdapterRequest<
   sentAt:
     string;
 
-  /*
-   * PATCH 31:
-   * 128-bit random nonce,
-   * представлений 32 hex-символами.
-   *
-   * nonce входить у HMAC.
-   */
   nonce:
     string;
 
   context:
     AppsScriptAdapterContext;
 
-  /*
-   * PATCH 32 додасть
-   * реальний idempotency key.
-   */
   idempotencyKey:
-  string | null;
+    string | null;
 
   auth:
     AppsScriptAdapterAuth;

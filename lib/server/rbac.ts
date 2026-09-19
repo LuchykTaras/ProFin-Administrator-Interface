@@ -3,12 +3,10 @@ import "server-only";
 import {
   AppError
 } from "@/lib/server/errors";
-
 import type {
   SessionContext,
   UserRole
 } from "@/lib/server/session";
-
 
 export type Permission =
   | "operation:create"
@@ -16,10 +14,12 @@ export type Permission =
   | "inventory:read"
   | "correction:request"
   | "cancellation:request"
+  | "transfer:create"
+  | "transfer:accept"
+  | "shift:close"
   | "project:manage"
   | "year:manage"
   | "users:manage";
-
 
 const ROLE_PERMISSIONS:
 Record<
@@ -31,7 +31,10 @@ Record<
     "journal:read",
     "inventory:read",
     "correction:request",
-    "cancellation:request"
+    "cancellation:request",
+    "transfer:create",
+    "transfer:accept",
+    "shift:close"
   ]),
 
   SENIOR_ADMIN: new Set([
@@ -39,7 +42,10 @@ Record<
     "journal:read",
     "inventory:read",
     "correction:request",
-    "cancellation:request"
+    "cancellation:request",
+    "transfer:create",
+    "transfer:accept",
+    "shift:close"
   ]),
 
   OWNER: new Set([
@@ -48,6 +54,9 @@ Record<
     "inventory:read",
     "correction:request",
     "cancellation:request",
+    "transfer:create",
+    "transfer:accept",
+    "shift:close",
     "project:manage",
     "year:manage",
     "users:manage"
@@ -59,12 +68,14 @@ Record<
     "inventory:read",
     "correction:request",
     "cancellation:request",
+    "transfer:create",
+    "transfer:accept",
+    "shift:close",
     "project:manage",
     "year:manage",
     "users:manage"
   ])
 };
-
 
 export function hasPermission(
   context: SessionContext,
@@ -76,7 +87,6 @@ export function hasPermission(
     permission
   );
 }
-
 
 export function assertPermission(
   context: SessionContext,
@@ -91,10 +101,8 @@ export function assertPermission(
   if (!allowed) {
     throw new AppError({
       status: 403,
-
       code:
         "FORBIDDEN",
-
       userMessage:
         "Недостатньо прав для цієї дії."
     });
