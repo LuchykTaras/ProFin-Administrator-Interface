@@ -662,30 +662,48 @@ export default function Home() {
             data
           );
         } catch (
-          loadError
+         loadError
         ) {
-          if (
-            controller
-              .signal
-              .aborted
-          ) {
-            return;
-          }
+       if (
+    controller
+      .signal
+      .aborted
+     ) {
+    return;
+  }
 
 
-          console.error(
-            loadError
-          );
+      console.error(
+      loadError
+      );
 
 
-          setError(
-            getApiErrorMessage(
-              loadError,
+  const message =
+    getApiErrorMessage(
+      loadError,
 
-              "Не вдалося отримати контекст інтерфейсу."
-            )
-          );
-        } finally {
+      "Не вдалося отримати контекст інтерфейсу."
+    );
+
+
+      if (
+      message ===
+    "Сесія відсутня або завершилася."
+     ) {
+    window.location.replace(
+      "/login"
+     );
+
+     return;
+  }
+
+
+     setError(
+      message
+     );
+    }
+        
+        finally {
           if (
             !controller
               .signal
@@ -901,7 +919,7 @@ export default function Home() {
       await logoutSession();
 
 
-      window.location.reload();
+     window.location.href = "/login";
     } catch (
       logoutError
     ) {
@@ -985,9 +1003,13 @@ export default function Home() {
           </p>
 
           <small>
-            Для входу використайте
-            нове персональне
-            invitation-посилання.
+          Для продовження роботи
+          увійдіть у свій обліковий
+          запис через сторінку входу.
+          
+          Якщо проблема повторюється,
+          зверніться до адміністратора
+          ProFin OS.
           </small>
         </div>
       </main>

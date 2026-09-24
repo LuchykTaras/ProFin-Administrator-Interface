@@ -139,6 +139,8 @@ Promise<SessionContext | null> {
           u.token_version
 
       AND u.status = 'ACTIVE'
+      AND u.revoked_at IS NULL
+
       AND p.status = 'ACTIVE'
       AND l.status = 'ACTIVE'
 
