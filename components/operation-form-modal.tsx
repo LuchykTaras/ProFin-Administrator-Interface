@@ -28,8 +28,10 @@ import {
 } from "@/lib/client/api-client";
 
 import {
+  clearOperationFormSchemaCache,
   createOperation,
-  getOperationFormSchema
+  getOperationFormSchema,
+  prefetchOperationFormSchemas
 } from "@/lib/client/operations-api";
 
 import type {
@@ -1074,6 +1076,22 @@ export function OperationFormModal({
       }
 
 
+      /*
+       * Не показуємо schema попередньої модалки
+       * під час першого READ нового сценарію.
+       * Якщо PATCH 45 cache прогрітий, нова schema
+       * підставиться практично одразу.
+       */
+      setSchema(
+        null
+      );
+
+
+      setError(
+        ""
+      );
+
+
       setDraft(
         {}
       );
@@ -1150,6 +1168,143 @@ export function OperationFormModal({
       reloadKey,
       initialOperationType,
       loadSchemaForSelection
+    ]
+  );
+
+
+  /*
+   * PATCH 45 — прогрів наступного server-driven рівня.
+   *
+   * Нічого не вираховуємо у React:
+   * лише заздалегідь викликаємо той самий
+   * GET /api/operations/form-schema для options,
+   * які вже повернув domain core.
+   */
+  useEffect(
+    () => {
+      if (
+        !open ||
+        !schema ||
+        loading ||
+        error
+      ) {
+        return;
+      }
+
+
+      const operationType =
+        String(
+          draft.type ??
+          initialOperationType ??
+          ""
+        )
+          .trim();
+
+
+      if (!operationType) {
+        return;
+      }
+
+
+      const category =
+        String(
+          draft.category ??
+          ""
+        )
+          .trim();
+
+
+      const article =
+        String(
+          draft.article ??
+          ""
+        )
+          .trim();
+
+
+      const fields =
+        schema.sections.flatMap(
+          section =>
+            section.fields
+        );
+
+
+      if (!category) {
+        const categoryField =
+          fields.find(
+            field =>
+              field.key ===
+                "category"
+          );
+
+
+        const options =
+          categoryField?.options ??
+          [];
+
+
+        if (options.length) {
+          void prefetchOperationFormSchemas(
+            options
+              .slice(0, 10)
+              .map(
+                option => ({
+                  operationType,
+                  category:
+                    option.value,
+                  article:
+                    null
+                })
+              ),
+            2
+          );
+        }
+
+
+        return;
+      }
+
+
+      if (!article) {
+        const articleField =
+          fields.find(
+            field =>
+              field.key ===
+                "article"
+          );
+
+
+        const options =
+          articleField?.options ??
+          [];
+
+
+        if (options.length) {
+          void prefetchOperationFormSchemas(
+            options
+              .slice(0, 8)
+              .map(
+                option => ({
+                  operationType,
+                  category,
+                  article:
+                    option.value
+                })
+              ),
+            2
+          );
+        }
+      }
+    },
+    [
+      open,
+      schema,
+      loading,
+      error,
+      draft.type,
+      draft.category,
+      draft.article,
+      initialOperationType
     ]
   );
 
@@ -1755,6 +1910,7 @@ export function OperationFormModal({
         >
           {
             loading &&
+            !schema &&
             (
               <div
                 className=
@@ -1775,6 +1931,36 @@ export function OperationFormModal({
                 <span>
                   Отримуємо дозволений
                   server-side contract…
+                </span>
+              </div>
+            )
+          }
+
+
+          {
+            loading &&
+            schema &&
+            !error &&
+            (
+              <div
+                className=
+                  "operation-schema-refresh-bar"
+
+                role=
+                  "status"
+
+                aria-live=
+                  "polite"
+              >
+                <LoaderCircle
+                  className=
+                    "operation-schema-spinner"
+
+                  size={18}
+                />
+
+                <span>
+                  Оновлюємо залежні поля з domain schema…
                 </span>
               </div>
             )
@@ -1812,11 +1998,14 @@ export function OperationFormModal({
                     "operation-schema-retry"
 
                   onClick={
-                    () =>
+                    () => {
+                      clearOperationFormSchemaCache();
+
                       setReloadKey(
                         value =>
                           value + 1
-                      )
+                      );
+                    }
                   }
                 >
                   <RefreshCw
@@ -1896,7 +2085,6 @@ export function OperationFormModal({
 
 
           {
-            !loading &&
             !error &&
             schema &&
             (
@@ -1918,6 +2106,7 @@ export function OperationFormModal({
                         }
 
                         locked={
+                          loading ||
                           submitting ||
                           Boolean(
                             submitResult

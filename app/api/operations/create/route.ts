@@ -84,6 +84,7 @@ const ALLOWED_OPERATION_KEYS =
     "article",
     "doctor",
     "patientId",
+    "newClient",
     "unitPrice",
     "quantity",
     "amount",
@@ -105,6 +106,15 @@ const ALLOWED_OPERATION_KEYS =
     "inventorySeries",
     "inventoryExpiryDate",
     "inventorySupplier"
+  ]);
+
+
+const ALLOWED_NEW_CLIENT_KEYS =
+  new Set([
+    "name",
+    "birthDate",
+    "trustedPerson",
+    "trustedPhone"
   ]);
 
 
@@ -157,6 +167,132 @@ function assertNoTrustedContextOverride(
       });
     }
   }
+}
+
+
+function normalizeNewClient(
+  value:
+    unknown
+): CreateOperationInput["newClient"] {
+  if (
+    value === null ||
+    typeof value ===
+      "undefined"
+  ) {
+    return null;
+  }
+
+  if (
+    !isRecord(
+      value
+    )
+  ) {
+    throw new AppError({
+      status:
+        400,
+
+      code:
+        "INVALID_NEW_CLIENT_PAYLOAD",
+
+      userMessage:
+        "Некоректний формат нового клієнта.",
+
+      retryable:
+        false
+    });
+  }
+
+  assertNoTrustedContextOverride(
+    value,
+    "operation.newClient"
+  );
+
+  const unknownKeys =
+    Object.keys(
+      value
+    ).filter(
+      key =>
+        !ALLOWED_NEW_CLIENT_KEYS.has(
+          key
+        )
+    );
+
+  if (
+    unknownKeys.length
+  ) {
+    throw new AppError({
+      status:
+        400,
+
+      code:
+        "UNKNOWN_NEW_CLIENT_FIELD",
+
+      userMessage:
+        "Картка нового клієнта містить невідоме поле.",
+
+      technicalMessage:
+        `Unknown newClient fields: ${unknownKeys.join(
+          ", "
+        )}.`,
+
+      retryable:
+        false
+    });
+  }
+
+  const name =
+    typeof value.name ===
+      "string"
+      ? value.name.trim()
+      : "";
+
+  const birthDate =
+    typeof value.birthDate ===
+      "string"
+      ? value.birthDate.trim()
+      : "";
+
+  const trustedPerson =
+    typeof value.trustedPerson ===
+      "string"
+      ? value.trustedPerson.trim()
+      : "";
+
+  const trustedPhone =
+    typeof value.trustedPhone ===
+      "string"
+      ? value.trustedPhone.trim()
+      : "";
+
+  if (
+    !name ||
+    !trustedPerson ||
+    !trustedPhone ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      birthDate
+    )
+  ) {
+    throw new AppError({
+      status:
+        400,
+
+      code:
+        "NEW_CLIENT_FIELDS_REQUIRED",
+
+      userMessage:
+        "Заповніть ПІБ дитини, дату народження, довірену особу та телефон.",
+
+      retryable:
+        false
+    });
+  }
+
+  return {
+    name,
+    birthDate,
+    trustedPerson,
+    trustedPhone
+  };
 }
 
 
@@ -294,12 +430,48 @@ function normalizeOperation(
   }
 
 
+  const newClient =
+    normalizeNewClient(
+      value.newClient
+    );
+
+
+  const patientId =
+    typeof value.patientId ===
+      "string"
+      ? value.patientId.trim()
+      : "";
+
+
+  if (
+    newClient &&
+    patientId
+  ) {
+    throw new AppError({
+      status:
+        409,
+
+      code:
+        "NEW_CLIENT_AND_EXISTING_PATIENT_CONFLICT",
+
+      userMessage:
+        "Оберіть існуючого клієнта або створення нового клієнта.",
+
+      retryable:
+        false
+    });
+  }
+
+
   return {
     ...(value as CreateOperationInput),
     date,
     type,
     category,
-    article
+    article,
+    patientId:
+      patientId || null,
+    newClient
   };
 }
 

@@ -51,7 +51,9 @@ import {
 } from "@/lib/client/interface-api";
 
 import {
-  getOperationFormSchema
+  getOperationFormSchema,
+  prefetchOperationFormSchema,
+  prefetchOperationFormSchemas
 } from "@/lib/client/operations-api";
 
 import type {
@@ -351,7 +353,8 @@ function QuickAction({
   subtitle,
   tone,
   disabled = false,
-  onClick
+  onClick,
+  onIntent
 }: {
   icon:
     IconComponent;
@@ -370,6 +373,9 @@ function QuickAction({
 
   onClick?:
     () => void;
+
+  onIntent?:
+    () => void;
 }) {
   return (
     <button
@@ -384,6 +390,14 @@ function QuickAction({
 
       onClick={
         onClick
+      }
+
+      onPointerEnter={
+        onIntent
+      }
+
+      onFocus={
+        onIntent
       }
     >
       <span
@@ -742,11 +756,44 @@ export default function Home() {
           }
 
 
-          setOperationTypes(
+          const enabledTypes =
             schema.operationTypes.filter(
               item =>
                 item.enabled
-            )
+            );
+
+
+          setOperationTypes(
+            enabledTypes
+          );
+
+
+          /*
+           * PATCH 45 — READ-only warmup.
+           *
+           * Після отримання базової schema
+           * прогріваємо перший рівень кожного
+           * доступного типу максимум двома
+           * паралельними запитами.
+           *
+           * Бізнес-логіка не дублюється:
+           * кожна schema як і раніше приходить
+           * з Apps Script domain core.
+           */
+          void prefetchOperationFormSchemas(
+            enabledTypes.map(
+              item => ({
+                operationType:
+                  item.value,
+
+                category:
+                  null,
+
+                article:
+                  null
+              })
+            ),
+            2
           );
         } catch (
           loadError
@@ -1406,8 +1453,40 @@ export default function Home() {
                                 tone=
                                   "green"
 
+                                onIntent={
+                                  () => {
+                                    void prefetchOperationFormSchema({
+                                      operationType:
+                                        operationType.value,
+
+                                      category:
+                                        null,
+
+                                      article:
+                                        null
+                                    });
+                                  }
+                                }
+
                                 onClick={
                                   () => {
+                                    /*
+                                     * Повторний виклик безпечний:
+                                     * PATCH 45 dedupe приєднає
+                                     * модалку до вже запущеного
+                                     * READ-запиту замість дубля.
+                                     */
+                                    void prefetchOperationFormSchema({
+                                      operationType:
+                                        operationType.value,
+
+                                      category:
+                                        null,
+
+                                      article:
+                                        null
+                                    });
+
                                     setSelectedOperationType(
                                       operationType.value
                                     );

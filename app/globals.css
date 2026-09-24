@@ -2333,3 +2333,39 @@ td {
   border-color: #e3dbe8;
   opacity: 0.72;
 }
+/* ============================================
+ * PATCH 45
+ * NON-BLOCKING DOMAIN SCHEMA REFRESH
+ * ============================================ */
+
+.operation-schema-refresh-bar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  min-height: 38px;
+  padding: 8px 12px;
+
+  border:
+    1px solid
+    #d9e9e4;
+
+  border-radius: 12px;
+
+  background:
+    rgba(247, 250, 249, 0.96);
+
+  color:
+    #577069;
+
+  font-size: 12px;
+
+  box-shadow:
+    0 4px 16px
+    rgba(17, 63, 51, 0.06);
+}

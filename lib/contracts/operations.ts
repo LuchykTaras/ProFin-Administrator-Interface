@@ -174,7 +174,27 @@ export type OperationDraft =
   >;
 
 /****************************************************
- * ROADMAP PATCH 34
+ * ROADMAP PATCH 44A
+ * NEW CLIENT + CREATE OPERATION WEB CONTRACT
+ ****************************************************/
+
+export type CreateOperationNewClientInput = {
+  name:
+    string;
+
+  birthDate:
+    string;
+
+  trustedPerson:
+    string;
+
+  trustedPhone:
+    string;
+};
+
+
+/****************************************************
+ * ROADMAP PATCH 34 / PATCH 44
  * CREATE OPERATION WEB CONTRACT
  ****************************************************/
 
@@ -202,6 +222,9 @@ export type CreateOperationInput = {
 
   patientId?:
     string | null;
+
+  newClient?:
+    CreateOperationNewClientInput | null;
 
   unitPrice?:
     number | string | null;
@@ -280,6 +303,15 @@ export type CreateOperationResult = {
 
   operationId:
     string;
+
+  clientCreated?:
+    boolean;
+
+  clientId?:
+    string;
+
+  assetWritten?:
+    boolean;
 
   type:
     string;
