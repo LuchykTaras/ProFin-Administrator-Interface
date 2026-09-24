@@ -16,6 +16,10 @@ import {
 } from "@/lib/server/db";
 
 import {
+  hashPassword
+} from "@/lib/server/password";
+
+import {
   SESSION_COOKIE_NAME
 } from "@/lib/server/session";
 
@@ -48,15 +52,26 @@ export async function POST(
         .catch(() => null) as
           | {
               token?: unknown;
+              password?: unknown;
             }
           | null;
+
 
     const token =
       typeof body?.token === "string"
         ? body.token.trim()
         : "";
 
-    if (token.length < 20) {
+
+    const password =
+      typeof body?.password === "string"
+        ? body.password
+        : "";
+
+
+    if (
+      token.length < 20
+    ) {
       return apiFail(
         requestId,
         {
@@ -69,19 +84,78 @@ export async function POST(
       );
     }
 
+
+    const normalizedPassword =
+      password.normalize(
+        "NFKC"
+      );
+
+
+    if (
+      normalizedPassword.length < 8
+    ) {
+      return apiFail(
+        requestId,
+        {
+          status: 400,
+          code:
+            "PASSWORD_TOO_SHORT",
+          userMessage:
+            "Пароль повинен містити щонайменше 8 символів."
+        }
+      );
+    }
+
+
+    if (
+      normalizedPassword.length > 256
+    ) {
+      return apiFail(
+        requestId,
+        {
+          status: 400,
+          code:
+            "PASSWORD_TOO_LONG",
+          userMessage:
+            "Пароль занадто довгий."
+        }
+      );
+    }
+
+
+    /*
+     * Хешуємо пароль тільки на сервері.
+     *
+     * У Neon записується не пароль,
+     * а scrypt hash із lib/server/password.ts.
+     */
+    const passwordHash =
+      await hashPassword(
+        normalizedPassword
+      );
+
+
     const invitationHash =
       sha256(token);
 
-    const sql = db();
+
+    const sql =
+      db();
+
 
     const sessionToken =
       createRandomToken(32);
 
+
     const sessionHash =
-      sha256(sessionToken);
+      sha256(
+        sessionToken
+      );
+
 
     const sessionId =
       createId("ses");
+
 
     const ttlHoursRaw =
       Number(
@@ -90,6 +164,7 @@ export async function POST(
         "12"
       );
 
+
     const ttlHours =
       Number.isFinite(
         ttlHoursRaw
@@ -97,6 +172,7 @@ export async function POST(
       ttlHoursRaw > 0
         ? ttlHoursRaw
         : 12;
+
 
     const expiresAt =
       new Date(
@@ -107,9 +183,17 @@ export async function POST(
           1000
       );
 
+
     const result =
       await sql.begin(
         async transaction => {
+          /*
+           * FOR UPDATE блокує конкретне
+           * invitation під час активації.
+           *
+           * Два паралельні запити не зможуть
+           * використати один invite двічі.
+           */
           const rows =
             await transaction`
               SELECT
@@ -186,24 +270,62 @@ export async function POST(
               LIMIT 1
             `;
 
+
           const invitation =
             rows[0] as unknown as
               InvitationRow |
               undefined;
 
-          if (!invitation) {
+
+          if (
+            !invitation
+          ) {
             return null;
           }
 
+
+          /*
+           * ГОЛОВНА НОВА ЧАСТИНА.
+           *
+           * Invitation підтверджує право
+           * користувача встановити пароль.
+           */
+          await transaction`
+            UPDATE users
+
+            SET
+              password_hash =
+                ${passwordHash}
+
+            WHERE
+              user_id =
+                ${invitation.userId}
+
+              AND project_id =
+                ${invitation.projectId}
+          `;
+
+
+          /*
+           * Invitation стає одноразовим.
+           */
           await transaction`
             UPDATE invitations
 
-            SET used_at = NOW()
+            SET
+              used_at =
+                NOW()
 
-            WHERE invitation_id =
-              ${invitation.invitationId}
+            WHERE
+              invitation_id =
+                ${invitation.invitationId}
           `;
 
+
+          /*
+           * Після успішної активації
+           * одразу створюємо session.
+           */
           await transaction`
             INSERT INTO sessions (
               session_id,
@@ -227,15 +349,26 @@ export async function POST(
             )
           `;
 
+
           const eventId =
             createId("evt");
 
+
+          /*
+           * НІКОЛИ не пишемо password
+           * або password_hash в audit.
+           */
           const afterSnapshot =
             JSON.stringify({
               sessionId,
+
+              passwordConfigured:
+                true,
+
               expiresAt:
                 expiresAt.toISOString()
             });
+
 
           await transaction`
             INSERT INTO audit_events (
@@ -268,11 +401,15 @@ export async function POST(
             )
           `;
 
+
           return invitation;
         }
       );
 
-    if (!result) {
+
+    if (
+      !result
+    ) {
       return apiFail(
         requestId,
         {
@@ -284,6 +421,7 @@ export async function POST(
         }
       );
     }
+
 
     const response =
       apiOk(
@@ -302,32 +440,44 @@ export async function POST(
             result.projectId,
 
           locationId:
-            result.locationId
+            result.locationId,
+
+          passwordConfigured:
+            true
         },
-        "Доступ активовано.",
+        "Обліковий запис активовано.",
         "SESSION_CREATED"
       );
+
 
     response.cookies.set(
       SESSION_COOKIE_NAME,
       sessionToken,
       {
-        httpOnly: true,
+        httpOnly:
+          true,
 
         secure:
           process.env.NODE_ENV ===
           "production",
 
-        sameSite: "lax",
+        sameSite:
+          "lax",
 
-        path: "/",
+        path:
+          "/",
 
-        expires: expiresAt
+        expires:
+          expiresAt
       }
     );
 
+
     return response;
-  } catch (error) {
+
+  } catch (
+    error
+  ) {
     return apiFromError(
       requestId,
       error
