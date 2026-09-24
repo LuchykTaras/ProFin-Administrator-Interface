@@ -9,10 +9,6 @@ import {
 } from "@/lib/server/db";
 
 import {
-  getOperationFormSchema
-} from "@/lib/server/operation-form-schema";
-
-import {
   hasPermission
 } from "@/lib/server/rbac";
 
@@ -29,12 +25,6 @@ export const dynamic =
   "force-dynamic";
 
 
-type DomainAdapterStatus =
-  | "OK"
-  | "NOT_CONNECTED"
-  | "ERROR";
-
-
 export async function GET(
   request:
     Request
@@ -47,26 +37,24 @@ export async function GET(
 
   try {
     /*
-     * Увесь trusted context
-     * отримуємо виключно
-     * із server-side session.
+     * Bootstrap відповідає тільки за те,
+     * без чого сам інтерфейс не може
+     * безпечно відобразитися:
      *
-     * Browser не може передати:
+     * - server-side session;
+     * - trusted project/location/year;
+     * - control-plane DB;
+     * - RBAC.
      *
-     * projectId
-     * locationId
-     * activeYear
-     * spreadsheetId
-     * role
+     * Apps Script НЕ викликаємо тут.
+     * Інакше повільний/недоступний
+     * domain adapter блокує весь UI
+     * на час APPS_SCRIPT_TIMEOUT_MS.
      */
     const context =
       await requireSessionContext();
 
 
-    /*
-     * Реальна перевірка
-     * control-plane PostgreSQL.
-     */
     const sql =
       db();
 
@@ -74,110 +62,6 @@ export async function GET(
     await sql`
       SELECT 1
     `;
-
-
-    /*
-     * PATCH 39
-     *
-     * Реальна server-side перевірка
-     * Apps Script domain adapter.
-     *
-     * Не hardcode:
-     *
-     * domainCommandsReady = true
-     *
-     * Замість цього використовуємо
-     * той самий domain flow,
-     * через який уже працює
-     * форма операції:
-     *
-     * Next.js server
-     *      ↓
-     * getOperationFormSchema()
-     *      ↓
-     * signed adapter
-     *      ↓
-     * Apps Script
-     *      ↓
-     * getOperationFormSchemaWeb
-     */
-    let domainAdapterStatus:
-      DomainAdapterStatus =
-        "NOT_CONNECTED";
-
-
-    let domainCommandsReady =
-      false;
-
-
-    try {
-      const domainSchema =
-        await getOperationFormSchema({
-          requestId,
-
-          context,
-
-          requestedOperationType:
-            null,
-
-          requestedCategory:
-            null,
-
-          requestedArticle:
-            null
-        });
-
-
-      /*
-       * Якщо Apps Script реально
-       * відповів і повернув
-       * server-driven schema,
-       * domain adapter вважаємо
-       * доступним.
-       */
-      if (
-        domainSchema &&
-        Array.isArray(
-          domainSchema.operationTypes
-        )
-      ) {
-        domainAdapterStatus =
-          "OK";
-
-        domainCommandsReady =
-          true;
-      }
-
-    } catch (
-      domainError
-    ) {
-      /*
-       * Відмова domain adapter
-       * НЕ повинна ламати весь
-       * bootstrap.
-       *
-       * Користувач все одно повинен
-       * отримати session/context,
-       * але UI покаже, що domain
-       * тимчасово недоступний.
-       */
-      console.error(
-        "[INTERFACE_BOOTSTRAP_DOMAIN_CHECK_FAILED]",
-        {
-          requestId,
-          error:
-            domainError
-        }
-      );
-
-
-      domainAdapterStatus =
-        "ERROR";
-
-
-      domainCommandsReady =
-        false;
-    }
 
 
     return apiOk(
@@ -261,14 +145,12 @@ export async function GET(
             "OK" as const,
 
           /*
-           * PATCH 39
-           *
-           * Значення тепер формується
-           * реальною перевіркою
-           * Apps Script adapter.
+           * Реальний status adapter
+           * встановлює клієнт після
+           * окремого READ-запиту schema.
            */
           domainAdapter:
-            domainAdapterStatus,
+            "NOT_CONNECTED" as const,
 
           checkedAt:
             new Date()
@@ -277,16 +159,12 @@ export async function GET(
 
 
         /*
-         * PATCH 39
-         *
-         * Більше НЕ hardcoded false.
-         *
-         * true тільки якщо
-         * getOperationFormSchema()
-         * реально отримав domain schema.
+         * Не оголошуємо domain ready
+         * до фактичного успішного
+         * getOperationFormSchema().
          */
         domainCommandsReady:
-          domainCommandsReady
+          false
       },
 
       "Інтерфейсний контекст отримано.",

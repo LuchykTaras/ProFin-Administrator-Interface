@@ -586,6 +586,17 @@ export default function Home() {
 
 
   const [
+    domainAdapterStatus,
+    setDomainAdapterStatus
+  ] =
+    useState<
+      InterfaceServiceStatus
+    >(
+      "NOT_CONNECTED"
+    );
+
+
+  const [
     bootstrap,
     setBootstrap
   ] =
@@ -717,6 +728,10 @@ export default function Home() {
           []
         );
 
+        setDomainAdapterStatus(
+          "NOT_CONNECTED"
+        );
+
         setOperationTypesLoading(
           false
         );
@@ -736,6 +751,10 @@ export default function Home() {
 
         setOperationTypesError(
           ""
+        );
+
+        setDomainAdapterStatus(
+          "NOT_CONNECTED"
         );
 
 
@@ -765,6 +784,11 @@ export default function Home() {
 
           setOperationTypes(
             enabledTypes
+          );
+
+
+          setDomainAdapterStatus(
+            "OK"
           );
 
 
@@ -814,6 +838,11 @@ export default function Home() {
 
           setOperationTypes(
             []
+          );
+
+
+          setDomainAdapterStatus(
+            "ERROR"
           );
 
 
@@ -994,7 +1023,9 @@ export default function Home() {
 
   const domainReady =
     bootstrap
-      .domainCommandsReady;
+      .domainCommandsReady ||
+    domainAdapterStatus ===
+      "OK";
 
 
   const domainUnavailableText =
@@ -1676,9 +1707,7 @@ export default function Home() {
                       <StatusPill
                         tone={
                           serviceTone(
-                            bootstrap
-                              .services
-                              .domainAdapter
+                            domainAdapterStatus
                           )
                         }
                       >
@@ -1967,9 +1996,7 @@ export default function Home() {
               <StatusPill
                 tone={
                   serviceTone(
-                    bootstrap
-                      .services
-                      .domainAdapter
+                    domainAdapterStatus
                   )
                 }
               >
