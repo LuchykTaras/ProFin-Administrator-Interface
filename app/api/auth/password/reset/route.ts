@@ -31,6 +31,7 @@ type TargetUserRow = {
   displayName: string;
   role: string;
   status: string;
+  passwordResetRequired: boolean;
   tokenVersion: number;
 };
 
@@ -48,6 +49,11 @@ export async function POST(
       await requireSessionContext();
 
 
+    /*
+     * Тільки OWNER / SYSTEM,
+     * тому що permission users:manage
+     * зараз є саме у цих ролей.
+     */
     assertPermission(
       context,
       "users:manage"
@@ -89,6 +95,10 @@ export async function POST(
     }
 
 
+    /*
+     * Не дозволяємо OWNER випадково
+     * заблокувати самого себе.
+     */
     if (
       userId ===
       context.userId
@@ -99,10 +109,10 @@ export async function POST(
           status: 400,
 
           code:
-            "CANNOT_REVOKE_CURRENT_USER",
+            "CANNOT_RESET_CURRENT_USER",
 
           userMessage:
-            "Для завершення власної сесії використайте кнопку виходу."
+            "Неможливо скинути пароль власного облікового запису цією командою."
         }
       );
     }
@@ -115,6 +125,10 @@ export async function POST(
     const result =
       await sql.begin(
         async transaction => {
+          /*
+           * Блокуємо рядок користувача
+           * на час транзакції.
+           */
           const userRows =
             await transaction`
               SELECT
@@ -130,6 +144,9 @@ export async function POST(
                 status AS
                   "status",
 
+                password_reset_required AS
+                  "passwordResetRequired",
+
                 token_version AS
                   "tokenVersion"
 
@@ -141,6 +158,9 @@ export async function POST(
 
                 AND project_id =
                   ${context.projectId}
+
+                AND revoked_at
+                  IS NULL
 
               FOR UPDATE
 
@@ -159,34 +179,21 @@ export async function POST(
           }
 
 
-          const revokedSessions =
-            await transaction`
-              UPDATE sessions
-
-              SET
-                revoked_at =
-                  NOW()
-
-              WHERE
-                user_id =
-                  ${userId}
-
-                AND project_id =
-                  ${context.projectId}
-
-                AND revoked_at
-                  IS NULL
-
-              RETURNING
-                session_id
-            `;
-
-
+          /*
+           * Ставимо вимогу створити
+           * новий пароль.
+           *
+           * Старий password_hash
+           * НЕ видаляємо.
+           */
           const versionRows =
             await transaction`
               UPDATE users
 
               SET
+                password_reset_required =
+                  true,
+
                 token_version =
                   token_version + 1
 
@@ -219,10 +226,52 @@ export async function POST(
             );
 
 
+          /*
+           * Одразу завершуємо всі
+           * поточні сесії користувача.
+           */
+          const revokedSessions =
+            await transaction`
+              UPDATE sessions
+
+              SET
+                revoked_at =
+                  NOW()
+
+              WHERE
+                user_id =
+                  ${userId}
+
+                AND project_id =
+                  ${context.projectId}
+
+                AND revoked_at
+                  IS NULL
+
+              RETURNING
+                session_id
+            `;
+
+
+          /*
+           * Audit.
+           */
           const eventId =
             createId(
               "evt"
             );
+
+
+          const beforeSnapshot =
+            JSON.stringify({
+              passwordResetRequired:
+                targetUser
+                  .passwordResetRequired,
+
+              tokenVersion:
+                targetUser
+                  .tokenVersion
+            });
 
 
           
@@ -240,6 +289,7 @@ export async function POST(
               action,
               target_type,
               target_id,
+              before_snapshot,
               after_snapshot,
               result
             )
@@ -251,25 +301,32 @@ export async function POST(
               ${context.projectId},
               ${context.locationId},
               ${context.activeYear},
-              'SESSION_REVOKE_ALL',
+              'PASSWORD_RESET_REQUIRED',
               'USER',
               ${userId},
+              ${beforeSnapshot}::jsonb,
               jsonb_build_object(
+             'targetUserId',
+             ${userId},
+
+            'targetDisplayName',
+             ${targetUser.displayName},
+
+             'targetRole',
+              ${targetUser.role},
+
+             'passwordResetRequired',
+             TRUE,
+
              'revokedSessionCount',
              ${revokedSessions.length},
 
              'tokenVersion',
-             ${newTokenVersion},
-
-             'targetUserId',
-             ${userId},
-
-             'targetDisplayName',
-            ${targetUser.displayName}
-            ),
+             ${newTokenVersion}
+              ),
               'COMPLETED'
             )
-           `;
+          `;
 
 
           return {
@@ -314,6 +371,9 @@ export async function POST(
             .targetUser
             .displayName,
 
+        passwordResetRequired:
+          true,
+
         revokedSessionCount:
           result
             .revokedSessionCount,
@@ -322,8 +382,8 @@ export async function POST(
           result
             .tokenVersion
       },
-      "Усі сесії користувача завершено.",
-      "USER_SESSIONS_REVOKED"
+      "Для користувача увімкнено обов'язкове створення нового пароля.",
+      "PASSWORD_RESET_REQUIRED"
     );
 
   } catch (error) {

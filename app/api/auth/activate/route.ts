@@ -295,7 +295,11 @@ export async function POST(
 
             SET
               password_hash =
-                ${passwordHash}
+                ${passwordHash},
+
+             password_reset_required =
+               false
+
 
             WHERE
               user_id =
