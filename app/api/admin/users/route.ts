@@ -683,11 +683,6 @@ export async function POST(
     const result =
       await sql.begin(
         async transaction => {
-          /*
-           * Email використовується
-           * для входу, тому не допускаємо
-           * дублікати.
-           */
           const existingUsers =
             await transaction`
               SELECT
@@ -714,13 +709,6 @@ export async function POST(
           }
 
 
-          /*
-           * Створюємо account.
-           *
-           * Пароля ще немає.
-           * Його встановить сам
-           * користувач через invitation.
-           */
           await transaction`
             INSERT INTO users (
               user_id,
@@ -749,10 +737,6 @@ export async function POST(
           `;
 
 
-          /*
-           * Прив’язуємо всі
-           * вибрані філії.
-           */
           for (
             const locationId
             of locationIds
@@ -775,9 +759,6 @@ export async function POST(
           }
 
 
-          /*
-           * Первинне invitation.
-           */
           await transaction`
             INSERT INTO invitations (
               invitation_id,
@@ -802,6 +783,14 @@ export async function POST(
 
           /*
            * Audit.
+           *
+           * Важливо:
+           * після JSON.stringify
+           * нормалізуємо snapshot
+           * через #>> '{}',
+           * щоб у колонці jsonb
+           * зберігався OBJECT,
+           * а не JSON STRING.
            */
           const eventId =
             createId(
@@ -859,7 +848,12 @@ export async function POST(
               'USER_CREATED',
               'USER',
               ${userId},
-              ${afterSnapshot}::jsonb,
+
+              (
+                ${afterSnapshot}::jsonb
+                #>> '{}'
+              )::jsonb,
+
               'COMPLETED'
             )
           `;
@@ -952,10 +946,9 @@ export async function POST(
  * - роль;
  * - доступні філії.
  *
- * Після зміни role/location:
+ * Після зміни:
  * - token_version +1;
- * - усі активні сесії користувача
- *   завершуються.
+ * - усі активні сесії користувача завершуються.
  * ============================================================
  */
 export async function PATCH(
@@ -1032,10 +1025,6 @@ export async function PATCH(
     }
 
 
-    /*
-     * Власний OWNER-account
-     * через цю панель не редагуємо.
-     */
     if (
       userId ===
       context.userId
@@ -1194,10 +1183,6 @@ export async function PATCH(
           }
 
 
-          /*
-           * SYSTEM-account через
-           * OWNER UI не змінюємо.
-           */
           if (
             targetUser.role ===
             "SYSTEM"
@@ -1209,14 +1194,6 @@ export async function PATCH(
           }
 
 
-          /*
-           * Змінюємо ім’я,
-           * роль і token version.
-           *
-           * token_version +1
-           * миттєво інвалідує
-           * старий access context.
-           */
           await transaction`
             UPDATE users
 
@@ -1239,10 +1216,6 @@ export async function PATCH(
           `;
 
 
-          /*
-           * Повністю замінюємо
-           * доступні філії.
-           */
           await transaction`
             DELETE FROM user_locations
 
@@ -1277,10 +1250,6 @@ export async function PATCH(
           }
 
 
-          /*
-           * Після зміни role/location
-           * завершуємо старі сесії.
-           */
           const revokedSessions =
             await transaction`
               UPDATE sessions
@@ -1367,7 +1336,12 @@ export async function PATCH(
               'USER_UPDATED',
               'USER',
               ${userId},
-              ${afterSnapshot}::jsonb,
+
+              (
+                ${afterSnapshot}::jsonb
+                #>> '{}'
+              )::jsonb,
+
               'COMPLETED'
             )
           `;

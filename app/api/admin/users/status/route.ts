@@ -52,21 +52,13 @@ function normalizeRequestedStatus(
     return null;
   }
 
+
   const normalized =
     value
       .trim()
       .toUpperCase();
 
 
-  /*
-   * Фронтенд може надсилати
-   * BLOCKED.
-   *
-   * У БД такого status немає.
-   *
-   * BLOCKED =
-   * INACTIVE.
-   */
   if (
     normalized ===
     "BLOCKED"
@@ -105,58 +97,16 @@ export async function POST(
 
 
   try {
-    /*
-     * 1. Поточна
-     *    авторизована сесія.
-     */
     const context =
       await requireSessionContext();
 
 
-    /*
-     * 2. Перевіряємо право
-     *    керування користувачами.
-     */
     assertPermission(
       context,
       "users:manage"
     );
 
 
-    /*
-     * 3. Читаємо body.
-     *
-     * Підтримуємо:
-     *
-     * {
-     *   userId,
-     *   blocked: true
-     * }
-     *
-     * {
-     *   userId,
-     *   blocked: false
-     * }
-     *
-     * А також:
-     *
-     * {
-     *   userId,
-     *   status: "ACTIVE"
-     * }
-     *
-     * {
-     *   userId,
-     *   status: "INACTIVE"
-     * }
-     *
-     * І старий варіант:
-     *
-     * {
-     *   userId,
-     *   status: "BLOCKED"
-     * }
-     */
     const body =
       await request
         .json()
@@ -178,20 +128,6 @@ export async function POST(
         : "";
 
 
-    /*
-     * Пріоритет має blocked,
-     * тому що саме його зараз
-     * надсилає OWNER UI.
-     *
-     * blocked: true
-     *     -> INACTIVE
-     *
-     * blocked: false
-     *     -> ACTIVE
-     *
-     * Якщо blocked немає —
-     * використовуємо status.
-     */
     const requestedStatus:
       RequestedStatus | null =
         typeof body?.blocked ===
@@ -236,10 +172,6 @@ export async function POST(
     }
 
 
-    /*
-     * 4. Не дозволяємо OWNER
-     *    змінювати власний status.
-     */
     if (
       userId ===
       context.userId
@@ -263,18 +195,9 @@ export async function POST(
       db();
 
 
-    /*
-     * 5. Вся операція
-     *    виконується
-     *    однією транзакцією.
-     */
     const result =
       await sql.begin(
         async transaction => {
-          /*
-           * Блокуємо target user
-           * на час зміни.
-           */
           const rows =
             await transaction`
               SELECT
@@ -325,11 +248,6 @@ export async function POST(
           }
 
 
-          /*
-           * SYSTEM account
-           * через цей endpoint
-           * не змінюємо.
-           */
           if (
             targetUser.role ===
             "SYSTEM"
@@ -343,12 +261,6 @@ export async function POST(
           }
 
 
-          /*
-           * Якщо status уже
-           * відповідає потрібному —
-           * зайвий UPDATE
-           * не виконуємо.
-           */
           if (
             targetUser.status ===
             requestedStatus
@@ -391,25 +303,12 @@ export async function POST(
 
 
           /*
-           * 6A.
-           *
-           * BLOCK USER.
-           *
-           * У БД:
-           *
-           * status = INACTIVE
+           * BLOCK
            */
           if (
             requestedStatus ===
             "INACTIVE"
           ) {
-            /*
-             * Робимо користувача
-             * неактивним.
-             *
-             * token_version + 1
-             * анулює старі токени.
-             */
             const updatedUsers =
               await transaction`
                 UPDATE users
@@ -447,11 +346,6 @@ export async function POST(
               );
 
 
-            /*
-             * Завершуємо всі
-             * активні sessions
-             * цього користувача.
-             */
             const revokedSessions =
               await transaction`
                 UPDATE sessions
@@ -479,14 +373,6 @@ export async function POST(
               revokedSessions.length;
 
 
-            /*
-             * У таблиці invitations
-             * немає revoked_at.
-             *
-             * Тому активні
-             * невикористані invitation
-             * анулюємо через used_at.
-             */
             const invalidatedInvitations =
               await transaction`
                 UPDATE invitations
@@ -516,13 +402,7 @@ export async function POST(
 
 
           /*
-           * 6B.
-           *
-           * UNBLOCK USER.
-           *
-           * Повертаємо:
-           *
-           * status = ACTIVE
+           * UNBLOCK
            */
           if (
             requestedStatus ===
@@ -562,7 +442,7 @@ export async function POST(
 
 
           /*
-           * 7. Audit.
+           * Audit
            */
           const eventId =
             createId(
@@ -577,12 +457,6 @@ export async function POST(
               : "USER_UNBLOCKED";
 
 
-          /*
-           * JSON.stringify + ::jsonb
-           * використовуємо так само,
-           * як у виправленому
-           * invitation endpoint.
-           */
           const afterSnapshot =
             JSON.stringify({
               targetUserId:
@@ -642,7 +516,12 @@ export async function POST(
               ${action},
               'USER',
               ${userId},
-              ${afterSnapshot}::jsonb,
+
+              (
+                ${afterSnapshot}::jsonb
+                #>> '{}'
+              )::jsonb,
+
               'COMPLETED'
             )
           `;
@@ -668,10 +547,6 @@ export async function POST(
       );
 
 
-    /*
-     * 8. User не існує
-     *    в поточному project.
-     */
     if (!result) {
       return apiFail(
         requestId,
@@ -688,10 +563,6 @@ export async function POST(
     }
 
 
-    /*
-     * 9. SYSTEM account
-     *    захищений.
-     */
     if (
       result.type ===
       "SYSTEM_USER"
@@ -711,10 +582,6 @@ export async function POST(
     }
 
 
-    /*
-     * 10. Status уже
-     *     встановлений.
-     */
     if (
       result.type ===
       "NO_CHANGE"
@@ -764,9 +631,6 @@ export async function POST(
     }
 
 
-    /*
-     * 11. Success.
-     */
     const isBlocked =
       result.newStatus ===
       "INACTIVE";
