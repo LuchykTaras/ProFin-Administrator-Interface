@@ -1284,6 +1284,66 @@ export async function getOperationFormSchema(
   );
 
 
+  /*
+   * PATCH 46 — ACTIVE WEB WRITE COMPATIBILITY
+   *
+   * Поточний domain schema уже повертає
+   * повну форму Активу, але все ще містить
+   * старий readiness-guard:
+   *
+   *   "Веб-проведення активів ще не підключене."
+   *
+   * Водночас web write-contract уже містить
+   * assetName / assetCategory / assetAmortization /
+   * assetStartDate, а POST /api/operations/create
+   * передає їх тільки в createOperationWeb.
+   *
+   * Тут НЕ переносимо бізнес-логіку у Next.js.
+   * Ми лише прибираємо конкретний застарілий
+   * UI/readiness guard для повної domain schema.
+   * Фактичне проведення, перевірки та залежні
+   * записи як і раніше виконує Apps Script core.
+   */
+  const assetCompatibilityFieldKeys =
+    new Set(
+      domain.controls
+        .filter(
+          control =>
+            control.visible
+        )
+        .map(
+          control =>
+            control.key
+        )
+    );
+
+
+  const enableAssetWebWriteCompatibility =
+    domain.domainOptionsReady ===
+      true &&
+    domain.selectedOperationType ===
+      "Актив" &&
+    domain.canSubmit ===
+      false &&
+    domain.unavailableReason ===
+      "Веб-проведення активів ще не підключене." &&
+    [
+      "date",
+      "type",
+      "category",
+      "article",
+      "assetName",
+      "assetCategory",
+      "assetAmortization",
+      "assetStartDate"
+    ].every(
+      fieldKey =>
+        assetCompatibilityFieldKeys.has(
+          fieldKey as OperationFieldKey
+        )
+    );
+
+
   return {
   version:
     domain.version,
@@ -1309,9 +1369,13 @@ export async function getOperationFormSchema(
     ),
 
   canSubmit:
-    domain.canSubmit,
+    enableAssetWebWriteCompatibility
+      ? true
+      : domain.canSubmit,
 
   unavailableReason:
-    domain.unavailableReason
+    enableAssetWebWriteCompatibility
+      ? null
+      : domain.unavailableReason
 };
 }

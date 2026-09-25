@@ -56,6 +56,10 @@ import {
   prefetchOperationFormSchemas
 } from "@/lib/client/operations-api";
 
+import {
+  cancelOperation
+} from "@/lib/client/operational-commands-api";
+
 import type {
   InterfaceBootstrapData,
   InterfaceServiceStatus
@@ -213,43 +217,80 @@ function AppLogo() {
           "center",
 
         gap:
-          4,
+          7,
 
         minHeight:
           86
       }}
     >
-      <Image
-        src=
-          "/profin-logo.png"
+      <div
+  style={{
+    width:
+      "175px",
 
-        alt=
-          "ProFin"
+    height:
+      "74px",
 
-        width={
-          180
-        }
+    display:
+      "flex",
 
-        height={
-          70
-        }
+    alignItems:
+      "center",
 
-        priority
+    justifyContent:
+      "center",
 
-        style={{
-          width:
-            "155px",
+    borderRadius:
+      "12px",
 
-          height:
-            "auto",
+    background:
+      "#ffffff",
 
-          objectFit:
-            "contain",
+    border:
+      "1px solid rgba(0, 0, 0, 0.08)",
 
-          mixBlendMode:
-            "screen"
-        }}
-      />
+    boxShadow:
+      "0 2px 8px rgba(0, 0, 0, 0.08)",
+
+    padding:
+      "4px 8px",
+
+    overflow:
+      "hidden"
+  }}
+>
+        <Image
+          src=
+            "/profin-logo.png"
+
+          alt=
+            "ProFin"
+
+          width={
+            1766
+          }
+
+          height={
+            724
+          }
+
+          priority
+
+          style={{
+            display:
+              "block",
+
+            width:
+              "155px",
+
+            height:
+              "auto",
+
+            objectFit:
+              "contain"
+          }}
+        />
+      </div>
 
       <span
         style={{
@@ -644,6 +685,33 @@ export default function Home() {
 
 
   const [
+    cancellingOperation,
+    setCancellingOperation
+  ] =
+    useState(
+      false
+    );
+
+
+  const [
+    cancelOperationMessage,
+    setCancelOperationMessage
+  ] =
+    useState(
+      ""
+    );
+
+
+  const [
+    cancelOperationError,
+    setCancelOperationError
+  ] =
+    useState(
+      ""
+    );
+
+
+  const [
     error,
     setError
   ] =
@@ -957,6 +1025,132 @@ export default function Home() {
       );
     }
   }
+
+
+  async function requestOperationCancellation() {
+    if (
+      cancellingOperation
+    ) {
+      return;
+    }
+
+
+    setCancelOperationError(
+      ""
+    );
+
+    setCancelOperationMessage(
+      ""
+    );
+
+
+    const requestedOperationId =
+      window.prompt(
+        "Вкажіть точний ID проведеної операції, яку потрібно скасувати."
+      );
+
+
+    if (
+      requestedOperationId ===
+        null
+    ) {
+      return;
+    }
+
+
+    const operationId =
+      requestedOperationId.trim();
+
+
+    if (
+      !operationId
+    ) {
+      setCancelOperationError(
+        "Вкажіть точний ID операції."
+      );
+
+      return;
+    }
+
+
+    const confirmed =
+      window.confirm(
+        `Скасувати операцію ${operationId}? Проведений запис не видаляється фізично: доменне ядро застосує чинну політику скасування та залежностей.`
+      );
+
+
+    if (
+      !confirmed
+    ) {
+      return;
+    }
+
+
+    setCancellingOperation(
+      true
+    );
+
+
+    try {
+      const response =
+        await cancelOperation({
+          input: {
+            operationId
+          },
+
+          /*
+           * Один стабільний key
+           * для одного operationId.
+           * Повторний submit не має
+           * створювати друге скасування.
+           */
+          idempotencyKey:
+            `profin-web-cancel-${operationId}`
+        });
+
+
+      const warnings =
+        response
+          .result
+          .warnings
+          ?.filter(
+            warning =>
+              Boolean(
+                warning?.trim()
+              )
+          ) ??
+        [];
+
+
+      setCancelOperationMessage(
+        [
+          `Операцію ${response.result.operationId} скасовано.`,
+
+          response.idempotencyReplayed
+            ? "Повторний запит оброблено без дубля."
+            : "",
+
+          ...warnings
+        ]
+          .filter(Boolean)
+          .join(" ")
+      );
+    } catch (
+      cancelError
+    ) {
+      setCancelOperationError(
+        getApiErrorMessage(
+          cancelError,
+          "Не вдалося скасувати операцію."
+        )
+      );
+    } finally {
+      setCancellingOperation(
+        false
+      );
+    }
+  }
+
 
 
   if (
@@ -1630,8 +1824,11 @@ export default function Home() {
                             RotateCcw
                           }
 
-                          title=
-                            "Скасувати операцію"
+                          title={
+                            cancellingOperation
+                              ? "Скасування…"
+                              : "Скасувати операцію"
+                          }
 
                           subtitle={
                             bootstrap
@@ -1639,7 +1836,7 @@ export default function Home() {
                               .cancellationRequest
                               ? (
                                   domainReady
-                                    ? "Скасувати проведену операцію"
+                                    ? "Скасувати проведену операцію за ID"
                                     : "Очікує domain adapter"
                                 )
                               : "Недостатньо прав"
@@ -1652,9 +1849,74 @@ export default function Home() {
                             !bootstrap
                               .permissions
                               .cancellationRequest ||
-                            !domainReady
+                            !domainReady ||
+                            cancellingOperation
+                          }
+
+                          onClick={
+                            () => {
+                              void requestOperationCancellation();
+                            }
                           }
                         />
+
+
+                        {
+                          cancelOperationMessage &&
+                          (
+                            <div
+                              role=
+                                "status"
+
+                              style={{
+                                marginTop:
+                                  8,
+
+                                fontSize:
+                                  12,
+
+                                lineHeight:
+                                  1.4,
+
+                                color:
+                                  "var(--green-700)"
+                              }}
+                            >
+                              {
+                                cancelOperationMessage
+                              }
+                            </div>
+                          )
+                        }
+
+
+                        {
+                          cancelOperationError &&
+                          (
+                            <div
+                              role=
+                                "alert"
+
+                              style={{
+                                marginTop:
+                                  8,
+
+                                fontSize:
+                                  12,
+
+                                lineHeight:
+                                  1.4,
+
+                                color:
+                                  "var(--red)"
+                              }}
+                            >
+                              {
+                                cancelOperationError
+                              }
+                            </div>
+                          )
+                        }
                       </div>
                     </>
                   )

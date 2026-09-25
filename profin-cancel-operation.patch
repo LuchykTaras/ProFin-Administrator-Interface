@@ -1,0 +1,279 @@
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -56,6 +56,10 @@
+   prefetchOperationFormSchemas
+ } from "@/lib/client/operations-api";
+ 
++import {
++  cancelOperation
++} from "@/lib/client/operational-commands-api";
++
+ import type {
+   InterfaceBootstrapData,
+   InterfaceServiceStatus
+@@ -644,6 +648,33 @@
+ 
+ 
+   const [
++    cancellingOperation,
++    setCancellingOperation
++  ] =
++    useState(
++      false
++    );
++
++
++  const [
++    cancelOperationMessage,
++    setCancelOperationMessage
++  ] =
++    useState(
++      ""
++    );
++
++
++  const [
++    cancelOperationError,
++    setCancelOperationError
++  ] =
++    useState(
++      ""
++    );
++
++
++  const [
+     error,
+     setError
+   ] =
+@@ -959,6 +990,132 @@
+   }
+ 
+ 
++  async function requestOperationCancellation() {
++    if (
++      cancellingOperation
++    ) {
++      return;
++    }
++
++
++    setCancelOperationError(
++      ""
++    );
++
++    setCancelOperationMessage(
++      ""
++    );
++
++
++    const requestedOperationId =
++      window.prompt(
++        "Вкажіть точний ID проведеної операції, яку потрібно скасувати."
++      );
++
++
++    if (
++      requestedOperationId ===
++        null
++    ) {
++      return;
++    }
++
++
++    const operationId =
++      requestedOperationId.trim();
++
++
++    if (
++      !operationId
++    ) {
++      setCancelOperationError(
++        "Вкажіть точний ID операції."
++      );
++
++      return;
++    }
++
++
++    const confirmed =
++      window.confirm(
++        `Скасувати операцію ${operationId}? Проведений запис не видаляється фізично: доменне ядро застосує чинну політику скасування та залежностей.`
++      );
++
++
++    if (
++      !confirmed
++    ) {
++      return;
++    }
++
++
++    setCancellingOperation(
++      true
++    );
++
++
++    try {
++      const response =
++        await cancelOperation({
++          input: {
++            operationId
++          },
++
++          /*
++           * Один стабільний key
++           * для одного operationId.
++           * Повторний submit не має
++           * створювати друге скасування.
++           */
++          idempotencyKey:
++            `profin-web-cancel-${operationId}`
++        });
++
++
++      const warnings =
++        response
++          .result
++          .warnings
++          ?.filter(
++            warning =>
++              Boolean(
++                warning?.trim()
++              )
++          ) ??
++        [];
++
++
++      setCancelOperationMessage(
++        [
++          `Операцію ${response.result.operationId} скасовано.`,
++
++          response.idempotencyReplayed
++            ? "Повторний запит оброблено без дубля."
++            : "",
++
++          ...warnings
++        ]
++          .filter(Boolean)
++          .join(" ")
++      );
++    } catch (
++      cancelError
++    ) {
++      setCancelOperationError(
++        getApiErrorMessage(
++          cancelError,
++          "Не вдалося скасувати операцію."
++        )
++      );
++    } finally {
++      setCancellingOperation(
++        false
++      );
++    }
++  }
++
++
++
+   if (
+     loading
+   ) {
+@@ -1630,8 +1787,11 @@
+                             RotateCcw
+                           }
+ 
+-                          title=
+-                            "Скасувати операцію"
++                          title={
++                            cancellingOperation
++                              ? "Скасування…"
++                              : "Скасувати операцію"
++                          }
+ 
+                           subtitle={
+                             bootstrap
+@@ -1639,7 +1799,7 @@
+                               .cancellationRequest
+                               ? (
+                                   domainReady
+-                                    ? "Скасувати проведену операцію"
++                                    ? "Скасувати проведену операцію за ID"
+                                     : "Очікує domain adapter"
+                                 )
+                               : "Недостатньо прав"
+@@ -1652,9 +1812,74 @@
+                             !bootstrap
+                               .permissions
+                               .cancellationRequest ||
+-                            !domainReady
++                            !domainReady ||
++                            cancellingOperation
++                          }
++
++                          onClick={
++                            () => {
++                              void requestOperationCancellation();
++                            }
+                           }
+                         />
++
++
++                        {
++                          cancelOperationMessage &&
++                          (
++                            <div
++                              role=
++                                "status"
++
++                              style={{
++                                marginTop:
++                                  8,
++
++                                fontSize:
++                                  12,
++
++                                lineHeight:
++                                  1.4,
++
++                                color:
++                                  "var(--green-700)"
++                              }}
++                            >
++                              {
++                                cancelOperationMessage
++                              }
++                            </div>
++                          )
++                        }
++
++
++                        {
++                          cancelOperationError &&
++                          (
++                            <div
++                              role=
++                                "alert"
++
++                              style={{
++                                marginTop:
++                                  8,
++
++                                fontSize:
++                                  12,
++
++                                lineHeight:
++                                  1.4,
++
++                                color:
++                                  "var(--red)"
++                              }}
++                            >
++                              {
++                                cancelOperationError
++                              }
++                            </div>
++                          )
++                        }
+                       </div>
+                     </>
+                   )
