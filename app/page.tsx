@@ -72,7 +72,8 @@ type NavKey =
   | "inventory"
   | "shift-close"
   | "clients"
-  | "account";
+  | "account"
+  | "access";
 
 
 type StatusTone =
@@ -160,6 +161,22 @@ const navItems: Array<{
       UserRound
   }
 ];
+
+
+const accessNavItem: {
+  key: NavKey;
+  label: string;
+  icon: IconComponent;
+} = {
+  key:
+    "access",
+
+  label:
+    "Керування доступом",
+
+  icon:
+    ShieldCheck
+};
 
 
 const roleLabels = {
@@ -662,48 +679,46 @@ export default function Home() {
             data
           );
         } catch (
-         loadError
+          loadError
         ) {
-       if (
-    controller
-      .signal
-      .aborted
-     ) {
-    return;
-  }
+          if (
+            controller
+              .signal
+              .aborted
+          ) {
+            return;
+          }
 
 
-      console.error(
-      loadError
-      );
+          console.error(
+            loadError
+          );
 
 
-  const message =
-    getApiErrorMessage(
-      loadError,
+          const message =
+            getApiErrorMessage(
+              loadError,
 
-      "Не вдалося отримати контекст інтерфейсу."
-    );
-
-
-      if (
-      message ===
-    "Сесія відсутня або завершилася."
-     ) {
-    window.location.replace(
-      "/login"
-     );
-
-     return;
-  }
+              "Не вдалося отримати контекст інтерфейсу."
+            );
 
 
-     setError(
-      message
-     );
-    }
-        
-        finally {
+          if (
+            message ===
+              "Сесія відсутня або завершилася."
+          ) {
+            window.location.replace(
+              "/login"
+            );
+
+            return;
+          }
+
+
+          setError(
+            message
+          );
+        } finally {
           if (
             !controller
               .signal
@@ -919,7 +934,8 @@ export default function Home() {
       await logoutSession();
 
 
-     window.location.href = "/login";
+      window.location.href =
+        "/login";
     } catch (
       logoutError
     ) {
@@ -1003,13 +1019,13 @@ export default function Home() {
           </p>
 
           <small>
-          Для продовження роботи
-          увійдіть у свій обліковий
-          запис через сторінку входу.
-          
-          Якщо проблема повторюється,
-          зверніться до адміністратора
-          ProFin OS.
+            Для продовження роботи
+            увійдіть у свій обліковий
+            запис через сторінку входу.
+
+            Якщо проблема повторюється,
+            зверніться до адміністратора
+            ProFin OS.
           </small>
         </div>
       </main>
@@ -1019,6 +1035,30 @@ export default function Home() {
 
   const context =
     bootstrap.context;
+
+
+  /*
+   * OWNER та SYSTEM мають
+   * окремий пункт меню для
+   * керування користувачами.
+   *
+   * CASHIER та SENIOR_ADMIN
+   * цей пункт узагалі не бачать.
+   */
+  const canManageAccess =
+    context.role ===
+      "OWNER" ||
+    context.role ===
+      "SYSTEM";
+
+
+  const visibleNavItems =
+    canManageAccess
+      ? [
+          ...navItems,
+          accessNavItem
+        ]
+      : navItems;
 
 
   const roleLabel =
@@ -1071,7 +1111,7 @@ export default function Home() {
             "nav"
         >
           {
-            navItems.map(
+            visibleNavItems.map(
               ({
                 key,
                 label,
@@ -1085,10 +1125,27 @@ export default function Home() {
                   }
 
                   onClick={
-                    () =>
+                    () => {
+                      /*
+                       * Керування доступом —
+                       * окрема OWNER/SYSTEM
+                       * сторінка.
+                       */
+                      if (
+                        key ===
+                          "access"
+                      ) {
+                        window.location.href =
+                          "/admin/users";
+
+                        return;
+                      }
+
+
                       setActive(
                         key
-                      )
+                      );
+                    }
                   }
 
                   className={
@@ -1192,7 +1249,7 @@ export default function Home() {
 
             <h1>
               {
-                navItems.find(
+                visibleNavItems.find(
                   item =>
                     item.key ===
                     active
@@ -1557,16 +1614,16 @@ export default function Home() {
 
 
                       <div
-                      className=
-                      "cash-cancel-action"
+                        className=
+                          "cash-cancel-action"
 
-                      style={{
-                      width:
-                     "min(280px, 100%)",
+                        style={{
+                          width:
+                            "min(280px, 100%)",
 
-                     marginTop:
-                     14
-                     }}
+                          marginTop:
+                            14
+                        }}
                       >
                         <QuickAction
                           icon={
@@ -1747,6 +1804,8 @@ export default function Home() {
         {
           active !==
             "cash" &&
+          active !==
+            "access" &&
           (
             <section
               className=
@@ -1804,7 +1863,7 @@ export default function Home() {
 
               <h2>
                 {
-                  navItems.find(
+                  visibleNavItems.find(
                     item =>
                       item.key ===
                       active

@@ -29,6 +29,7 @@ export const runtime =
 type TargetUserRow = {
   userId: string;
   displayName: string;
+  email: string;
   role: string;
   status: string;
   tokenVersion: number;
@@ -43,17 +44,31 @@ export async function POST(
       request
     );
 
+
   try {
+    /*
+     * 1. Поточна сесія OWNER.
+     */
     const context =
       await requireSessionContext();
 
 
+    /*
+     * 2. Перевірка права.
+     */
     assertPermission(
       context,
       "users:manage"
     );
 
 
+    /*
+     * 3. Body.
+     *
+     * {
+     *   userId: "usr-demo-cashier"
+     * }
+     */
     const body =
       await request
         .json()
@@ -89,6 +104,13 @@ export async function POST(
     }
 
 
+    /*
+     * OWNER UI вже блокує
+     * admin-дії для самого себе.
+     *
+     * Але backend теж
+     * захищаємо.
+     */
     if (
       userId ===
       context.userId
@@ -99,10 +121,10 @@ export async function POST(
           status: 400,
 
           code:
-            "CANNOT_REVOKE_CURRENT_USER",
+            "CANNOT_REVOKE_OWN_SESSIONS",
 
           userMessage:
-            "Для завершення власної сесії використайте кнопку виходу."
+            "Не можна завершити всі сесії власного облікового запису через цю команду."
         }
       );
     }
@@ -112,9 +134,16 @@ export async function POST(
       db();
 
 
+    /*
+     * 4. Одна транзакція.
+     */
     const result =
       await sql.begin(
         async transaction => {
+          /*
+           * Блокуємо користувача
+           * на час операції.
+           */
           const userRows =
             await transaction`
               SELECT
@@ -123,6 +152,9 @@ export async function POST(
 
                 display_name AS
                   "displayName",
+
+                email AS
+                  "email",
 
                 role AS
                   "role",
@@ -159,6 +191,27 @@ export async function POST(
           }
 
 
+          /*
+           * SYSTEM account
+           * не чіпаємо.
+           */
+          if (
+            targetUser.role ===
+            "SYSTEM"
+          ) {
+            return {
+              type:
+                "SYSTEM_USER" as const,
+
+              targetUser
+            };
+          }
+
+
+          /*
+           * 5. Завершуємо
+           * всі ще не revoked sessions.
+           */
           const revokedSessions =
             await transaction`
               UPDATE sessions
@@ -182,7 +235,15 @@ export async function POST(
             `;
 
 
-          const versionRows =
+          /*
+           * 6. Піднімаємо
+           * token_version.
+           *
+           * Навіть якщо cookie/token
+           * десь залишився,
+           * він більше не валідний.
+           */
+          const updatedUsers =
             await transaction`
               UPDATE users
 
@@ -205,27 +266,43 @@ export async function POST(
 
           const newTokenVersion =
             Number(
-              (
-                versionRows[0] as
-                  | {
-                      tokenVersion:
-                        number;
-                    }
-                  | undefined
-              )?.tokenVersion ??
-              targetUser
-                .tokenVersion +
-                1
+              updatedUsers[0]
+                ?.tokenVersion ??
+              Number(
+                targetUser.tokenVersion
+              ) + 1
             );
 
 
+          /*
+           * 7. Audit.
+           */
           const eventId =
             createId(
               "evt"
             );
 
 
-          
+          const afterSnapshot =
+            JSON.stringify({
+              targetUserId:
+                userId,
+
+              targetDisplayName:
+                targetUser.displayName,
+
+              targetEmail:
+                targetUser.email,
+
+              targetRole:
+                targetUser.role,
+
+              revokedSessionCount:
+                revokedSessions.length,
+
+              tokenVersion:
+                newTokenVersion
+            });
 
 
           await transaction`
@@ -251,28 +328,24 @@ export async function POST(
               ${context.projectId},
               ${context.locationId},
               ${context.activeYear},
+
               'SESSION_REVOKE_ALL',
+
               'USER',
+
               ${userId},
-              jsonb_build_object(
-             'revokedSessionCount',
-             ${revokedSessions.length},
 
-             'tokenVersion',
-             ${newTokenVersion},
+              ${afterSnapshot}::jsonb,
 
-             'targetUserId',
-             ${userId},
-
-             'targetDisplayName',
-            ${targetUser.displayName}
-            ),
               'COMPLETED'
             )
-           `;
+          `;
 
 
           return {
+            type:
+              "SUCCESS" as const,
+
             targetUser,
 
             revokedSessionCount:
@@ -285,6 +358,9 @@ export async function POST(
       );
 
 
+    /*
+     * 8. User відсутній.
+     */
     if (!result) {
       return apiFail(
         requestId,
@@ -301,6 +377,31 @@ export async function POST(
     }
 
 
+    /*
+     * 9. SYSTEM protected.
+     */
+    if (
+      result.type ===
+      "SYSTEM_USER"
+    ) {
+      return apiFail(
+        requestId,
+        {
+          status: 403,
+
+          code:
+            "SYSTEM_USER_PROTECTED",
+
+          userMessage:
+            "Системний обліковий запис не можна змінювати."
+        }
+      );
+    }
+
+
+    /*
+     * 10. Success.
+     */
     return apiOk(
       requestId,
       {
@@ -314,6 +415,16 @@ export async function POST(
             .targetUser
             .displayName,
 
+        email:
+          result
+            .targetUser
+            .email,
+
+        role:
+          result
+            .targetUser
+            .role,
+
         revokedSessionCount:
           result
             .revokedSessionCount,
@@ -322,8 +433,12 @@ export async function POST(
           result
             .tokenVersion
       },
-      "Усі сесії користувача завершено.",
-      "USER_SESSIONS_REVOKED"
+
+      result.revokedSessionCount > 0
+        ? "Усі активні сесії користувача завершено."
+        : "Активних сесій користувача немає.",
+
+      "SESSIONS_REVOKED"
     );
 
   } catch (error) {

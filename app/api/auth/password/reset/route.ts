@@ -29,8 +29,10 @@ export const runtime =
 type TargetUserRow = {
   userId: string;
   displayName: string;
+  email: string;
   role: string;
   status: string;
+  passwordSet: boolean;
   passwordResetRequired: boolean;
   tokenVersion: number;
 };
@@ -44,15 +46,17 @@ export async function POST(
       request
     );
 
+
   try {
+    /*
+     * 1. Поточний OWNER.
+     */
     const context =
       await requireSessionContext();
 
 
     /*
-     * Тільки OWNER / SYSTEM,
-     * тому що permission users:manage
-     * зараз є саме у цих ролей.
+     * 2. users:manage.
      */
     assertPermission(
       context,
@@ -60,6 +64,13 @@ export async function POST(
     );
 
 
+    /*
+     * 3. Body:
+     *
+     * {
+     *   userId: "usr-demo-cashier"
+     * }
+     */
     const body =
       await request
         .json()
@@ -96,8 +107,9 @@ export async function POST(
 
 
     /*
-     * Не дозволяємо OWNER випадково
-     * заблокувати самого себе.
+     * Не дозволяємо OWNER
+     * скидати пароль самому собі
+     * через admin UI.
      */
     if (
       userId ===
@@ -109,10 +121,10 @@ export async function POST(
           status: 400,
 
           code:
-            "CANNOT_RESET_CURRENT_USER",
+            "CANNOT_RESET_OWN_PASSWORD",
 
           userMessage:
-            "Неможливо скинути пароль власного облікового запису цією командою."
+            "Не можна скинути пароль власного облікового запису через цю команду."
         }
       );
     }
@@ -122,12 +134,14 @@ export async function POST(
       db();
 
 
+    /*
+     * 4. Транзакція.
+     */
     const result =
       await sql.begin(
         async transaction => {
           /*
-           * Блокуємо рядок користувача
-           * на час транзакції.
+           * Target user.
            */
           const userRows =
             await transaction`
@@ -138,11 +152,20 @@ export async function POST(
                 display_name AS
                   "displayName",
 
+                email AS
+                  "email",
+
                 role AS
                   "role",
 
                 status AS
                   "status",
+
+                (
+                  password_hash
+                  IS NOT NULL
+                ) AS
+                  "passwordSet",
 
                 password_reset_required AS
                   "passwordResetRequired",
@@ -158,9 +181,6 @@ export async function POST(
 
                 AND project_id =
                   ${context.projectId}
-
-                AND revoked_at
-                  IS NULL
 
               FOR UPDATE
 
@@ -180,13 +200,58 @@ export async function POST(
 
 
           /*
-           * Ставимо вимогу створити
-           * новий пароль.
-           *
-           * Старий password_hash
-           * НЕ видаляємо.
+           * SYSTEM account
+           * захищений.
            */
-          const versionRows =
+          if (
+            targetUser.role ===
+            "SYSTEM"
+          ) {
+            return {
+              type:
+                "SYSTEM_USER" as const,
+
+              targetUser
+            };
+          }
+
+
+          /*
+           * Не дозволяємо
+           * reset для INACTIVE user.
+           *
+           * Спочатку його треба
+           * розблокувати.
+           */
+          if (
+            targetUser.status !==
+            "ACTIVE"
+          ) {
+            return {
+              type:
+                "USER_INACTIVE" as const,
+
+              targetUser
+            };
+          }
+
+
+          /*
+           * 5. Встановлюємо
+           * password_reset_required.
+           *
+           * Сам password_hash
+           * НЕ видаляємо.
+           *
+           * Login endpoint повинен
+           * заборонити звичайний вхід,
+           * доки password_reset_required
+           * = true.
+           *
+           * token_version + 1
+           * інвалідовує старі tokens.
+           */
+          const updatedUsers =
             await transaction`
               UPDATE users
 
@@ -206,29 +271,26 @@ export async function POST(
 
               RETURNING
                 token_version AS
-                  "tokenVersion"
+                  "tokenVersion",
+
+                password_reset_required AS
+                  "passwordResetRequired"
             `;
 
 
           const newTokenVersion =
             Number(
-              (
-                versionRows[0] as
-                  | {
-                      tokenVersion:
-                        number;
-                    }
-                  | undefined
-              )?.tokenVersion ??
-              targetUser
-                .tokenVersion +
-                1
+              updatedUsers[0]
+                ?.tokenVersion ??
+              Number(
+                targetUser.tokenVersion
+              ) + 1
             );
 
 
           /*
-           * Одразу завершуємо всі
-           * поточні сесії користувача.
+           * 6. Завершуємо
+           * всі sessions.
            */
           const revokedSessions =
             await transaction`
@@ -254,7 +316,19 @@ export async function POST(
 
 
           /*
-           * Audit.
+           * 7.
+           *
+           * Старі invitation тут
+           * навмисно не створюємо.
+           *
+           * OWNER після цього може
+           * використати кнопку
+           * "Перевидати доступ".
+           */
+
+
+          /*
+           * 8. Audit.
            */
           const eventId =
             createId(
@@ -262,19 +336,34 @@ export async function POST(
             );
 
 
-          const beforeSnapshot =
+          const afterSnapshot =
             JSON.stringify({
+              targetUserId:
+                userId,
+
+              targetDisplayName:
+                targetUser.displayName,
+
+              targetEmail:
+                targetUser.email,
+
+              targetRole:
+                targetUser.role,
+
+              passwordConfigured:
+                Boolean(
+                  targetUser.passwordSet
+                ),
+
               passwordResetRequired:
-                targetUser
-                  .passwordResetRequired,
+                true,
+
+              revokedSessionCount:
+                revokedSessions.length,
 
               tokenVersion:
-                targetUser
-                  .tokenVersion
+                newTokenVersion
             });
-
-
-          
 
 
           await transaction`
@@ -289,7 +378,6 @@ export async function POST(
               action,
               target_type,
               target_id,
-              before_snapshot,
               after_snapshot,
               result
             )
@@ -301,35 +389,24 @@ export async function POST(
               ${context.projectId},
               ${context.locationId},
               ${context.activeYear},
+
               'PASSWORD_RESET_REQUIRED',
+
               'USER',
+
               ${userId},
-              ${beforeSnapshot}::jsonb,
-              jsonb_build_object(
-             'targetUserId',
-             ${userId},
 
-            'targetDisplayName',
-             ${targetUser.displayName},
+              ${afterSnapshot}::jsonb,
 
-             'targetRole',
-              ${targetUser.role},
-
-             'passwordResetRequired',
-             TRUE,
-
-             'revokedSessionCount',
-             ${revokedSessions.length},
-
-             'tokenVersion',
-             ${newTokenVersion}
-              ),
               'COMPLETED'
             )
           `;
 
 
           return {
+            type:
+              "SUCCESS" as const,
+
             targetUser,
 
             revokedSessionCount:
@@ -342,6 +419,9 @@ export async function POST(
       );
 
 
+    /*
+     * 9. User not found.
+     */
     if (!result) {
       return apiFail(
         requestId,
@@ -358,6 +438,53 @@ export async function POST(
     }
 
 
+    /*
+     * 10. SYSTEM.
+     */
+    if (
+      result.type ===
+      "SYSTEM_USER"
+    ) {
+      return apiFail(
+        requestId,
+        {
+          status: 403,
+
+          code:
+            "SYSTEM_USER_PROTECTED",
+
+          userMessage:
+            "Системний обліковий запис не можна змінювати."
+        }
+      );
+    }
+
+
+    /*
+     * 11. Inactive.
+     */
+    if (
+      result.type ===
+      "USER_INACTIVE"
+    ) {
+      return apiFail(
+        requestId,
+        {
+          status: 409,
+
+          code:
+            "USER_NOT_ACTIVE",
+
+          userMessage:
+            "Спочатку розблокуйте користувача."
+        }
+      );
+    }
+
+
+    /*
+     * 12. Success.
+     */
     return apiOk(
       requestId,
       {
@@ -371,6 +498,16 @@ export async function POST(
             .targetUser
             .displayName,
 
+        email:
+          result
+            .targetUser
+            .email,
+
+        role:
+          result
+            .targetUser
+            .role,
+
         passwordResetRequired:
           true,
 
@@ -382,7 +519,9 @@ export async function POST(
           result
             .tokenVersion
       },
-      "Для користувача увімкнено обов'язкове створення нового пароля.",
+
+      "Для користувача встановлено обов’язкову зміну пароля.",
+
       "PASSWORD_RESET_REQUIRED"
     );
 
