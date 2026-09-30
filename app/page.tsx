@@ -25,8 +25,13 @@ import {
 } from "lucide-react";
 
 import {
+
+  useCallback,
+
   useEffect,
+
   useState
+
 } from "react";
 
 import type {
@@ -52,8 +57,7 @@ import {
 
 import {
   getOperationFormSchema,
-  prefetchOperationFormSchema,
-  prefetchOperationFormSchemas
+  prefetchOperationFormSchema
 } from "@/lib/client/operations-api";
 
 import {
@@ -68,6 +72,8 @@ import type {
 import type {
   OperationTypeOption
 } from "@/lib/contracts/operations";
+
+import OperationJournal from "@/components/journal/operation-journal";
 
 
 type NavKey =
@@ -719,6 +725,15 @@ export default function Home() {
       ""
     );
 
+    const markDomainAdapterReady =
+    useCallback(
+      () => {
+        setDomainAdapterStatus(
+          "OK"
+        );
+      },
+      []
+    );
 
   useEffect(
     () => {
@@ -811,19 +826,56 @@ export default function Home() {
   );
 
 
-  useEffect(
+    useEffect(
+
     () => {
+
       if (
+
         !bootstrap
+
       ) {
+
         return;
+
       }
 
+      /*
+       * PATCH 46
+       *
+       * Схему проведення операцій
+       * завантажуємо тільки для Каси.
+       *
+       * Journal не повинен чекати або
+       * конкурувати з form-schema
+       * Apps Script READ-запитами.
+       */
+      if (
+
+        active !==
+
+          "cash"
+
+      ) {
+
+        setOperationTypesLoading(
+
+          false
+
+        );
+
+        return;
+
+      }
 
       if (
+
         !bootstrap
+
           .permissions
+
           .operationCreate
+
       ) {
         setOperationTypes(
           []
@@ -846,18 +898,11 @@ export default function Home() {
 
 
       async function loadOperationTypes() {
-        setOperationTypesLoading(
-          true
-        );
+                setOperationTypesError(
 
-        setOperationTypesError(
           ""
-        );
 
-        setDomainAdapterStatus(
-          "NOT_CONNECTED"
         );
-
 
         try {
           const schema =
@@ -892,34 +937,6 @@ export default function Home() {
             "OK"
           );
 
-
-          /*
-           * PATCH 45 — READ-only warmup.
-           *
-           * Після отримання базової schema
-           * прогріваємо перший рівень кожного
-           * доступного типу максимум двома
-           * паралельними запитами.
-           *
-           * Бізнес-логіка не дублюється:
-           * кожна schema як і раніше приходить
-           * з Apps Script domain core.
-           */
-          void prefetchOperationFormSchemas(
-            enabledTypes.map(
-              item => ({
-                operationType:
-                  item.value,
-
-                category:
-                  null,
-
-                article:
-                  null
-              })
-            ),
-            2
-          );
         } catch (
           loadError
         ) {
@@ -967,16 +984,15 @@ export default function Home() {
         }
       }
 
-
       void loadOperationTypes();
-
 
       return () => {
         controller.abort();
       };
     },
     [
-      bootstrap
+      bootstrap,
+      active
     ]
   );
 
@@ -2063,11 +2079,30 @@ export default function Home() {
         }
 
 
+          {
+          active ===
+            "journal" &&
+          (
+            <div
+              className=
+                "dashboard"
+            >
+              <OperationJournal
+                onAdapterReady={
+                  markDomainAdapterReady
+                }
+              />
+            </div>
+          )
+        }
+
         {
           active !==
             "cash" &&
           active !==
             "access" &&
+          active !==
+            "journal" &&
           (
             <section
               className=
@@ -2079,38 +2114,31 @@ export default function Home() {
               >
                 {
                   active ===
-                    "journal"
+                    "inventory"
                     ? (
-                        <ClipboardList
+                        <Boxes
                           size={34}
                         />
                       )
                     : active ===
-                        "inventory"
+                        "shift-close"
                       ? (
-                          <Boxes
+                          <ClipboardCheck
                             size={34}
                           />
                         )
                       : active ===
-                          "shift-close"
+                          "clients"
                         ? (
-                            <ClipboardCheck
+                            <Users
                               size={34}
                             />
                           )
-                        : active ===
-                            "clients"
-                          ? (
-                              <Users
-                                size={34}
-                              />
-                            )
-                          : (
-                              <UserRound
-                                size={34}
-                              />
-                            )
+                        : (
+                            <UserRound
+                              size={34}
+                            />
+                          )
                 }
               </div>
 
@@ -2132,20 +2160,6 @@ export default function Home() {
                   )?.label
                 }
               </h2>
-
-
-              {
-                active ===
-                  "journal" &&
-                (
-                  <p>
-                    Тут буде журнал
-                    проведених операцій,
-                    пошук, фільтри та
-                    дозволені дії.
-                  </p>
-                )
-              }
 
 
               {
@@ -2214,6 +2228,7 @@ export default function Home() {
                       </strong>
                     </div>
 
+
                     <div>
                       <span>
                         Роль
@@ -2225,6 +2240,7 @@ export default function Home() {
                         }
                       </strong>
                     </div>
+
 
                     <div>
                       <span>
@@ -2239,6 +2255,7 @@ export default function Home() {
                       </strong>
                     </div>
 
+
                     <div>
                       <span>
                         Проєкт
@@ -2251,6 +2268,7 @@ export default function Home() {
                         }
                       </strong>
                     </div>
+
 
                     <div>
                       <span>
@@ -2265,6 +2283,7 @@ export default function Home() {
                       </strong>
                     </div>
 
+
                     <div>
                       <span>
                         Сесія
@@ -2275,16 +2294,14 @@ export default function Home() {
                       </StatusPill>
                     </div>
 
+
                     <button
                       type="button"
-
                       className=
                         "danger-button"
-
                       onClick={
                         logout
                       }
-
                       disabled={
                         loggingOut
                       }
@@ -2305,6 +2322,8 @@ export default function Home() {
             </section>
           )
         }
+
+
 
 
         <footer

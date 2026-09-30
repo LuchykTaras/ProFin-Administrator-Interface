@@ -13,6 +13,8 @@ export const APPS_SCRIPT_HMAC_SCHEME =
 export type AppsScriptAdapterCommand =
   | "ping"
   | "idempotencyProbe"
+  | "getOperationFormSchemaWeb"
+  | "getOperationJournal"
   | "createOperationWeb"
   | "createTransfer"
   | "acceptTransfer"
