@@ -119,14 +119,24 @@ export async function GET(
         )
       );
 
-    const journal =
-      await getOperationJournal({
-        requestId,
-        context,
-        requestedMonthKey:
-          requestedMonth,
-        afterRow
-      });
+      const journal =
+    await getOperationJournal({
+      requestId,
+      context,
+      requestedMonthKey:
+        requestedMonth,
+      afterRow,
+
+      /*
+       * PATCH 48
+       *
+       * Browser abort
+       * прокидаємо нижче у
+       * server-side transport.
+       */
+      signal:
+        request.signal
+    });
 
     return apiOk(
       requestId,

@@ -48,20 +48,38 @@ type CallAppsScriptAdapterParams<
   requestId:
     string;
 
+
   command:
     AppsScriptAdapterCommand;
+
 
   context:
     SessionContext;
 
+
   payload:
     TPayload;
+
 
   idempotencyKey?:
     string | null;
 
+
   operationDate?:
     string | null;
+
+
+  /*
+   * PATCH 48
+   *
+   * Optional upstream AbortSignal.
+   *
+   * Journal його передає.
+   * Інші команди поки можуть
+   * працювати без нього.
+   */
+  signal?:
+    AbortSignal;
 };
 
 
@@ -345,8 +363,38 @@ export async function callAppsScriptAdapter<
 ): Promise<
   AppsScriptAdapterResponse<TData>
 > {
-  const url =
+    const url =
     getAppsScriptWebAppUrl();
+
+
+  /*
+   * PATCH 48
+   *
+   * Якщо browser request уже
+   * закритий, навіть не починаємо
+   * annual-route / signing / Apps Script.
+   */
+  if (
+    params.signal
+      ?.aborted
+  ) {
+    throw new AppError({
+      status:
+        499,
+
+      code:
+        "REQUEST_ABORTED",
+
+      userMessage:
+        "Запит скасовано.",
+
+      technicalMessage:
+        "Upstream HTTP request was already aborted.",
+
+      retryable:
+        false
+    });
+  }
 
 
   /*
@@ -412,7 +460,7 @@ export async function callAppsScriptAdapter<
   }
 
 
-  const timeoutMs =
+   const timeoutMs =
     getTimeoutMs();
 
 
@@ -420,9 +468,53 @@ export async function callAppsScriptAdapter<
     new AbortController();
 
 
+  /*
+   * Розрізняємо:
+   *
+   * 1. Apps Script timeout;
+   * 2. browser / upstream abort.
+   */
+  let timedOut =
+    false;
+
+
+  let abortedByCaller =
+    false;
+
+
+  const abortFromCaller =
+    () => {
+      abortedByCaller =
+        true;
+
+      controller.abort();
+    };
+
+
+  if (
+    params.signal
+      ?.aborted
+  ) {
+    abortFromCaller();
+  } else {
+    params.signal
+      ?.addEventListener(
+        "abort",
+        abortFromCaller,
+        {
+          once:
+            true
+        }
+      );
+  }
+
+
   const timeout =
     setTimeout(
       () => {
+        timedOut =
+          true;
+
         controller.abort();
       },
       timeoutMs
@@ -494,91 +586,8 @@ console.log(
     };
 
 
-  let response:
+    let response:
     Response;
-
-
-  try {
-    response =
-      await fetch(
-        url,
-        {
-          method:
-            "POST",
-
-          headers: {
-            "content-type":
-              "application/json",
-
-            "accept":
-              "application/json"
-          },
-
-          body:
-            JSON.stringify(
-              requestEnvelope
-            ),
-
-          cache:
-            "no-store",
-
-          redirect:
-            "follow",
-
-          signal:
-            controller.signal
-        }
-      );
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      error.name ===
-        "AbortError"
-    ) {
-      throw new AppError({
-        status:
-          504,
-
-        code:
-          "APPS_SCRIPT_TIMEOUT",
-
-        userMessage:
-          "Apps Script не відповів вчасно.",
-
-        technicalMessage:
-          `Apps Script timeout after ${timeoutMs} ms.`,
-
-        retryable:
-          true
-      });
-    }
-
-
-    throw new AppError({
-      status:
-        502,
-
-      code:
-        "APPS_SCRIPT_NETWORK_ERROR",
-
-      userMessage:
-        "Не вдалося підключитися до Apps Script.",
-
-      technicalMessage:
-        error instanceof Error
-          ? error.message
-          : String(
-              error
-            ),
-
-      retryable:
-        true
-    });
-  } finally {
-    clearTimeout(
-      timeout
-    );
-  }
 
 
   let rawText:
@@ -586,31 +595,243 @@ console.log(
 
 
   try {
-    rawText =
-      await response.text();
-  } catch (error) {
-    throw new AppError({
-      status:
-        502,
+    /*
+     * Один AbortController контролює
+     * і HTTP connection, і читання body.
+     */
+    try {
+      response =
+        await fetch(
+          url,
+          {
+            method:
+              "POST",
 
-      code:
-        "APPS_SCRIPT_RESPONSE_READ_FAILED",
+            headers: {
+              "content-type":
+                "application/json",
 
-      userMessage:
-        "Не вдалося прочитати відповідь Apps Script.",
+              "accept":
+                "application/json"
+            },
 
-      technicalMessage:
-        error instanceof Error
-          ? error.message
-          : String(
-              error
-            ),
+            body:
+              JSON.stringify(
+                requestEnvelope
+              ),
 
-      retryable:
-        true
-    });
+            cache:
+              "no-store",
+
+            redirect:
+              "follow",
+
+            signal:
+              controller.signal
+          }
+        );
+    } catch (
+      error
+    ) {
+      if (
+        error instanceof Error &&
+        error.name ===
+          "AbortError"
+      ) {
+        /*
+         * Browser / upstream
+         * закрив Journal request.
+         */
+        if (
+          abortedByCaller ||
+          params.signal
+            ?.aborted
+        ) {
+          throw new AppError({
+            status:
+              499,
+
+            code:
+              "REQUEST_ABORTED",
+
+            userMessage:
+              "Запит скасовано.",
+
+            technicalMessage:
+              "Apps Script fetch aborted because upstream request was closed.",
+
+            retryable:
+              false
+          });
+        }
+
+
+        /*
+         * Наш власний Apps Script timeout.
+         */
+        if (
+          timedOut
+        ) {
+          throw new AppError({
+            status:
+              504,
+
+            code:
+              "APPS_SCRIPT_TIMEOUT",
+
+            userMessage:
+              "Apps Script не відповів вчасно.",
+
+            technicalMessage:
+              `Apps Script timeout after ${timeoutMs} ms.`,
+
+            retryable:
+              true
+          });
+        }
+
+
+        throw new AppError({
+          status:
+            502,
+
+          code:
+            "APPS_SCRIPT_ABORTED",
+
+          userMessage:
+            "Запит до Apps Script було перервано.",
+
+          technicalMessage:
+            "Apps Script fetch aborted for an unknown reason.",
+
+          retryable:
+            true
+        });
+      }
+
+
+      throw new AppError({
+        status:
+          502,
+
+        code:
+          "APPS_SCRIPT_NETWORK_ERROR",
+
+        userMessage:
+          "Не вдалося підключитися до Apps Script.",
+
+        technicalMessage:
+          error instanceof Error
+            ? error.message
+            : String(
+                error
+              ),
+
+        retryable:
+          true
+      });
+    }
+
+
+    /*
+     * Читання body також залишається
+     * під тим самим AbortController.
+     */
+    try {
+      rawText =
+        await response.text();
+    } catch (
+      error
+    ) {
+      if (
+        error instanceof Error &&
+        error.name ===
+          "AbortError"
+      ) {
+        if (
+          abortedByCaller ||
+          params.signal
+            ?.aborted
+        ) {
+          throw new AppError({
+            status:
+              499,
+
+            code:
+              "REQUEST_ABORTED",
+
+            userMessage:
+              "Запит скасовано.",
+
+            technicalMessage:
+              "Apps Script response body read aborted because upstream request was closed.",
+
+            retryable:
+              false
+          });
+        }
+
+
+        if (
+          timedOut
+        ) {
+          throw new AppError({
+            status:
+              504,
+
+            code:
+              "APPS_SCRIPT_TIMEOUT",
+
+            userMessage:
+              "Apps Script не відповів вчасно.",
+
+            technicalMessage:
+              `Apps Script timeout after ${timeoutMs} ms while reading response body.`,
+
+            retryable:
+              true
+          });
+        }
+      }
+
+
+      throw new AppError({
+        status:
+          502,
+
+        code:
+          "APPS_SCRIPT_RESPONSE_READ_FAILED",
+
+        userMessage:
+          "Не вдалося прочитати відповідь Apps Script.",
+
+        technicalMessage:
+          error instanceof Error
+            ? error.message
+            : String(
+                error
+              ),
+
+        retryable:
+          true
+      });
+    }
+    } finally {
+    /*
+     * Cleanup робимо тільки після
+     * завершення fetch + body read.
+     */
+    clearTimeout(
+      timeout
+    );
+
+
+    params.signal
+      ?.removeEventListener(
+        "abort",
+        abortFromCaller
+      );
   }
-
 
   let raw:
     unknown;

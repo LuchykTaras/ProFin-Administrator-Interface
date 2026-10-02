@@ -90,30 +90,75 @@ export async function GET(
       );
 
 
-    const requestedArticle =
-      url.searchParams.get(
-        "article"
-      );
+      const requestedArticle =
+    url.searchParams.get(
+      "article"
+    );
+
+
+  /*
+   * PATCH 49 — FORM SCHEMA SPLIT
+   *
+   * Порожній initial request для Каси
+   * потребує тільки operationTypes.
+   *
+   * Щойно вибрано operationType /
+   * category / article — потрібна
+   * повна domain schema.
+   */
+    const requestedMode =
+    url.searchParams
+      .get(
+        "mode"
+      )
+      ?.trim()
+      .toLowerCase();
+
+
+  const schemaMode =
+    requestedMode ===
+      "full"
+      ? "FULL"
+      : requestedMode ===
+          "light"
+        ? "LIGHT"
+        : (
+            requestedOperationType ||
+            requestedCategory ||
+            requestedArticle
+              ? "FULL"
+              : "LIGHT"
+          );
 
 
     const schema =
-      await getOperationFormSchema({
-        requestId:
+    await getOperationFormSchema({
+      requestId:
+        requestId,
 
-          requestId,
+      context:
+        context,
 
-        context:
-          context,
+      requestedOperationType:
+        requestedOperationType,
 
-        requestedOperationType:
-          requestedOperationType,
+      requestedCategory:
+        requestedCategory,
 
-        requestedCategory:
-          requestedCategory,
+      requestedArticle:
+        requestedArticle,
 
-        requestedArticle:
-          requestedArticle
-      });
+      schemaMode:
+        schemaMode,
+
+      /*
+       * Той самий race-control,
+       * який ми вже зробили
+       * для Journal.
+       */
+      signal:
+        request.signal
+    });
 
 
     return apiOk(

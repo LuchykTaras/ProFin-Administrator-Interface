@@ -850,22 +850,34 @@ export default function Home() {
        * конкурувати з form-schema
        * Apps Script READ-запитами.
        */
-      if (
-
+            if (
         active !==
-
           "cash"
-
       ) {
-
         setOperationTypesLoading(
-
           false
-
         );
 
         return;
+      }
 
+      /*
+       * Schema вже отримана.
+       *
+       * При поверненні Journal → Cash
+       * повторно Apps Script не чіпаємо.
+       */
+      if (
+        operationTypes.length >
+          0 &&
+        domainAdapterStatus ===
+          "OK"
+      ) {
+        setOperationTypesLoading(
+          false
+        );
+
+        return;
       }
 
       if (
@@ -2079,22 +2091,28 @@ export default function Home() {
         }
 
 
-          {
-          active ===
-            "journal" &&
-          (
-            <div
-              className=
-                "dashboard"
-            >
-              <OperationJournal
-                onAdapterReady={
-                  markDomainAdapterReady
-                }
-              />
-            </div>
-          )
-        }
+        <div
+          className=
+            "dashboard"
+          hidden={
+            active !==
+              "journal"
+          }
+          aria-hidden={
+            active !==
+              "journal"
+          }
+        >
+          <OperationJournal
+            active={
+              active ===
+                "journal"
+            }
+            onAdapterReady={
+              markDomainAdapterReady
+            }
+          />
+        </div>
 
         {
           active !==

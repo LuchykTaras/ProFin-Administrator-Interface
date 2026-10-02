@@ -31,21 +31,38 @@ type UnknownRecord =
   Record<string, unknown>;
 
 
+type OperationFormSchemaMode =
+  "LIGHT" |
+  "FULL";
+
+
 type GetOperationFormSchemaParams = {
   requestId:
     string;
 
+
   context:
     SessionContext;
+
 
   requestedOperationType?:
     string | null;
 
+
   requestedCategory?:
     string | null;
 
+
   requestedArticle?:
     string | null;
+
+
+  schemaMode:
+    OperationFormSchemaMode;
+
+
+  signal?:
+    AbortSignal;
 };
 
 
@@ -448,6 +465,123 @@ function normalizeOperationTypes(
   );
 }
 
+function buildLightOperationFormSchema(
+  value:
+    unknown
+): OperationFormSchema {
+  if (
+    !isRecord(
+      value
+    )
+  ) {
+    throw new AppError({
+      status:
+        502,
+
+      code:
+        "INVALID_LIGHT_OPERATION_FORM_SCHEMA",
+
+      userMessage:
+        "Доменне ядро повернуло некоректний список типів операцій.",
+
+      retryable:
+        false
+    });
+  }
+
+
+  if (
+    value.source !==
+      "DOMAIN"
+  ) {
+    throw new AppError({
+      status:
+        502,
+
+      code:
+        "INVALID_OPERATION_FORM_SOURCE",
+
+      userMessage:
+        "Схема форми отримана з недопустимого джерела.",
+
+      technicalMessage:
+        `Expected source=DOMAIN, got ${String(
+          value.source
+        )}.`,
+
+      retryable:
+        false
+    });
+  }
+
+
+  const operationTypes =
+    normalizeOperationTypes(
+      value.operationTypes
+    );
+
+
+  if (
+    !operationTypes.length
+  ) {
+    throw new AppError({
+      status:
+        502,
+
+      code:
+        "EMPTY_OPERATION_TYPES",
+
+      userMessage:
+        "Доменне ядро не повернуло доступні типи операцій.",
+
+      retryable:
+        false
+    });
+  }
+
+
+  return {
+    version:
+      cleanOptionalString(
+        value.version
+      ) ??
+      OPERATION_FORM_CONTRACT_VERSION,
+
+    schemaChecksum:
+      cleanOptionalString(
+        value.schemaChecksum
+      ),
+
+    source:
+      "DOMAIN",
+
+    domainOptionsReady:
+      value.domainOptionsReady ===
+        true,
+
+    operationTypes,
+
+    selectedOperationType:
+      null,
+
+    /*
+     * LIGHT schema принципово
+     * не віддає UI важкі секції.
+     */
+    sections:
+      [],
+
+    /*
+     * LIGHT schema призначена
+     * тільки для побудови кнопок.
+     */
+    canSubmit:
+      false,
+
+    unavailableReason:
+      null
+  };
+}
 
 function normalizeDefaultValue(
   value:
@@ -1207,17 +1341,24 @@ export async function getOperationFormSchema(
    * apps-script-adapter.ts.
    */
   const adapterResponse =
-    await callAppsScriptAdapter<
+        await callAppsScriptAdapter<
       {
         operationType:
           string | null;
 
+
         category:
           string | null;
 
+
         article:
           string | null;
+
+
+        schemaMode:
+          OperationFormSchemaMode;
       },
+
       AppsScriptOperationFormSchemaData
     >({
       requestId:
@@ -1226,21 +1367,38 @@ export async function getOperationFormSchema(
       command:
         "getOperationFormSchemaWeb" as never,
 
-      context:
+            context:
         params.context,
+
 
       idempotencyKey:
         null,
 
-      payload: {
+
+      /*
+       * При переході Каса → Journal
+       * form-schema більше не повинен
+       * продовжувати займати transport.
+       */
+      signal:
+        params.signal,
+
+
+            payload: {
         operationType:
           requestedOperationType,
+
 
         category:
           requestedCategory,
 
+
         article:
-          requestedArticle
+          requestedArticle,
+
+
+        schemaMode:
+          params.schemaMode
       }
     });
 
@@ -1270,11 +1428,33 @@ export async function getOperationFormSchema(
     });
   }
 
+   const rawDomainResult =
+    responseData.result ??
+    responseData;
+
+
+  /*
+   * LIGHT path:
+   *
+   * Каса отримує тільки
+   * каталог типів операцій.
+   *
+   * sections / controls навіть
+   * не проходять normalization.
+   */
+  if (
+    params.schemaMode ===
+      "LIGHT"
+  ) {
+    return buildLightOperationFormSchema(
+      rawDomainResult
+    );
+  }
+
 
   const domain =
     normalizeDomainSchema(
-      responseData.result ??
-      responseData
+      rawDomainResult
     );
 
 

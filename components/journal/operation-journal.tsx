@@ -44,7 +44,7 @@ type ApiEnvelope<T> = {
 
 
 const POLLING_INTERVAL_MS =
-  6000;
+  12000;
 
 
 const CURRENCY_KEYS =
@@ -340,12 +340,16 @@ function csvEscape(
 }
 
 type OperationJournalProps = {
+  active:
+    boolean;
+
   onAdapterReady?:
     () => void;
 };
 
 
 export default function OperationJournal({
+  active,
   onAdapterReady
 }: OperationJournalProps) {
   const [
@@ -435,15 +439,41 @@ export default function OperationJournal({
     );
 
 
-    const pollRequestRunningRef =
+        const pollRequestRunningRef =
     useRef(
       false
     );
 
 
-  const initialLoadStartedRef =
+    const initialLoadStartedRef =
     useRef(
       false
+    );
+
+
+  /*
+   * Номер поточного INITIAL / REFRESH.
+   *
+   * Якщо старий запит був abort,
+   * він уже не зможе змінити state
+   * після старту нового запиту.
+   */
+  const loadGenerationRef =
+    useRef(
+      0
+    );
+
+
+  /*
+   * PATCH 47
+   *
+   * Один активний HTTP-запит Journal.
+   * При виході з Journal він
+   * буде скасований.
+   */
+  const activeRequestControllerRef =
+    useRef<AbortController | null>(
+      null
     );
 
 
@@ -462,17 +492,16 @@ export default function OperationJournal({
       journal
     ]
   );
-
-
-    useEffect(
-    () => {
-      /*
+/*
        * React Strict Mode у dev:
        * setup → cleanup → setup.
        *
        * Тому при кожному setup
        * обов'язково повертаємо true.
        */
+
+        useEffect(
+    () => {
       mountedRef.current =
         true;
 
@@ -480,37 +509,139 @@ export default function OperationJournal({
       return () => {
         mountedRef.current =
           false;
+
+
+        activeRequestControllerRef
+          .current
+          ?.abort();
+
+
+        activeRequestControllerRef.current =
+          null;
       };
     },
     []
   );
 
 
-  const requestJournal =
+    /*
+   * PATCH 47
+   * RESOURCE RACE GUARD
+   *
+   * Journal залишається змонтованим.
+   *
+   * При виході:
+   * - abort поточного HTTP;
+   * - зупинка polling;
+   * - invalidation старого loadMonth;
+   * - уже отримані rows залишаються в RAM.
+   */
+  useEffect(
+    () => {
+      if (
+        active
+      ) {
+        return;
+      }
+
+
+      /*
+       * Робимо всі старі loadMonth
+       * неактуальними.
+       */
+      loadGenerationRef.current +=
+        1;
+
+
+      activeRequestControllerRef
+        .current
+        ?.abort();
+
+
+      activeRequestControllerRef.current =
+        null;
+
+
+      pollRequestRunningRef.current =
+        false;
+
+
+      setPolling(
+        false
+      );
+
+
+      setRefreshing(
+        false
+      );
+
+
+      /*
+       * Якщо INITIAL був перерваний
+       * до отримання journal,
+       * при поверненні дозволяємо
+       * новий INITIAL.
+       */
+      if (
+        !journalRef.current
+      ) {
+        initialLoadStartedRef.current =
+          false;
+
+        setLoading(
+          false
+        );
+      }
+    },
+    [
+      active
+    ]
+  );
+
+
+    const requestJournal =
     useCallback(
       async (
         url:
           string
       ): Promise<OperationJournalData> => {
-                const controller =
+        /*
+         * Одночасно Journal має
+         * максимум один HTTP request.
+         *
+         * Новий request скасовує старий.
+         */
+        activeRequestControllerRef
+          .current
+          ?.abort();
+
+
+        const controller =
           new AbortController();
+
+
+        activeRequestControllerRef.current =
+          controller;
+
+
+        let timedOut =
+          false;
 
 
         const timeoutId =
           window.setTimeout(
             () => {
+              timedOut =
+                true;
+
               controller.abort();
             },
             30000
           );
 
 
-        let response:
-          Response;
-
-
         try {
-          response =
+          const response =
             await fetch(
               url,
               {
@@ -532,6 +663,45 @@ export default function OperationJournal({
                 }
               }
             );
+
+
+          const payload:
+            unknown =
+              await response.json();
+
+
+          if (
+            !isApiEnvelope(
+              payload
+            )
+          ) {
+            throw new Error(
+              "Сервер повернув некоректну відповідь журналу."
+            );
+          }
+
+
+          if (
+            !response.ok ||
+            !payload.ok ||
+            !payload.data
+          ) {
+            throw new Error(
+              payload.userMessage ||
+              "Не вдалося завантажити журнал операцій."
+            );
+          }
+
+
+          /*
+           * Якщо Journal отримав
+           * валідну відповідь,
+           * Apps Script adapter працює.
+           */
+          onAdapterReady?.();
+
+
+          return payload.data;
         } catch (
           requestError
         ) {
@@ -540,9 +710,26 @@ export default function OperationJournal({
             requestError.name ===
               "AbortError"
           ) {
-            throw new Error(
-              "Журнал не відповів протягом 30 секунд. Спробуйте оновити ще раз."
-            );
+            /*
+             * Abort саме через timeout.
+             */
+            if (
+              timedOut
+            ) {
+              throw new Error(
+                "Журнал не відповів протягом 30 секунд. Спробуйте оновити ще раз."
+              );
+            }
+
+
+            /*
+             * Нормальний abort:
+             *
+             * Journal → Cash
+             * DELTA → Refresh
+             * старий request → новий request
+             */
+            throw requestError;
           }
 
 
@@ -551,54 +738,28 @@ export default function OperationJournal({
           window.clearTimeout(
             timeoutId
           );
+
+
+          /*
+           * Старий request не має права
+           * очистити controller нового.
+           */
+          if (
+            activeRequestControllerRef.current ===
+              controller
+          ) {
+            activeRequestControllerRef.current =
+              null;
+          }
         }
-
-
-        const payload:
-          unknown =
-            await response.json();
-
-
-        if (
-          !isApiEnvelope(
-            payload
-          )
-        ) {
-          throw new Error(
-            "Сервер повернув некоректну відповідь журналу."
-          );
-        }
-
-
-        if (
-          !response.ok ||
-          !payload.ok ||
-          !payload.data
-        ) {
-          throw new Error(
-            payload.userMessage ||
-            "Не вдалося завантажити журнал операцій."
-          );
-        }
-
-
-        /*
-         * Успішний Journal API означає,
-         * що Apps Script adapter реально
-         * відповів через весь server path.
-         */
-        onAdapterReady?.();
-
-
-        return payload.data;
       },
-            [
+      [
         onAdapterReady
       ]
     );
 
 
-  const loadMonth =
+    const loadMonth =
     useCallback(
       async (
         monthKey?:
@@ -606,6 +767,15 @@ export default function OperationJournal({
         silent =
           false
       ) => {
+        const generation =
+          loadGenerationRef.current +
+          1;
+
+
+        loadGenerationRef.current =
+          generation;
+
+
         if (
           silent
         ) {
@@ -639,6 +809,17 @@ export default function OperationJournal({
             );
 
 
+          /*
+           * Цей request уже застарів.
+           */
+          if (
+            generation !==
+              loadGenerationRef.current
+          ) {
+            return;
+          }
+
+
           if (
             !mountedRef.current
           ) {
@@ -650,17 +831,21 @@ export default function OperationJournal({
             data
           );
 
+
           setPendingRows(
             []
           );
+
 
           setSearch(
             ""
           );
 
+
           setTypeFilter(
             "ALL"
           );
+
 
           setStatusFilter(
             "ALL"
@@ -668,6 +853,31 @@ export default function OperationJournal({
         } catch (
           requestError
         ) {
+          /*
+           * Abort через перемикання
+           * модулів — штатна подія.
+           */
+          if (
+            requestError instanceof DOMException &&
+            requestError.name ===
+              "AbortError"
+          ) {
+            return;
+          }
+
+
+          /*
+           * Старий request уже не має
+           * права показувати error.
+           */
+          if (
+            generation !==
+              loadGenerationRef.current
+          ) {
+            return;
+          }
+
+
           if (
             !mountedRef.current
           ) {
@@ -681,12 +891,19 @@ export default function OperationJournal({
               : "Не вдалося завантажити журнал операцій."
           );
         } finally {
+          /*
+           * Тільки останній актуальний
+           * request може керувати spinner.
+           */
           if (
-            mountedRef.current
+            mountedRef.current &&
+            generation ===
+              loadGenerationRef.current
           ) {
             setLoading(
               false
             );
+
 
             setRefreshing(
               false
@@ -700,11 +917,34 @@ export default function OperationJournal({
     );
 
 
-    useEffect(
+      useEffect(
     () => {
       /*
-       * Захист від подвійного INITIAL
-       * у React Strict Mode.
+       * Journal прихований —
+       * взагалі не займаємо
+       * Apps Script ресурс.
+       */
+      if (
+        !active
+      ) {
+        return;
+      }
+
+
+      /*
+       * Якщо дані вже є —
+       * повторний INITIAL
+       * не потрібен.
+       */
+      if (
+        journalRef.current
+      ) {
+        return;
+      }
+
+
+      /*
+       * React Strict Mode guard.
        */
       if (
         initialLoadStartedRef.current
@@ -720,6 +960,7 @@ export default function OperationJournal({
       void loadMonth();
     },
     [
+      active,
       loadMonth
     ]
   );
@@ -891,17 +1132,35 @@ export default function OperationJournal({
               };
             }
           );
-        } catch {
+                } catch (
+          requestError
+        ) {
           /*
-           * Silent polling не ламає
-           * вже завантажений журнал.
+           * При Journal → Cash
+           * DELTA штатно отримує AbortError.
            *
-           * Ручне оновлення покаже
-           * користувачу помилку окремо.
+           * Його користувачу не показуємо.
+           */
+          if (
+            requestError instanceof DOMException &&
+            requestError.name ===
+              "AbortError"
+          ) {
+            return;
+          }
+
+
+          /*
+           * Інші polling-помилки теж
+           * залишаємо silent:
+           *
+           * уже завантажений Journal
+           * не повинен зникати.
            */
         } finally {
           pollRequestRunningRef.current =
             false;
+
 
           if (
             mountedRef.current
@@ -919,13 +1178,24 @@ export default function OperationJournal({
     );
 
 
-  useEffect(
+    useEffect(
     () => {
       if (
+        !active ||
         !journal?.live
       ) {
         return;
       }
+
+
+      /*
+       * При поверненні у Journal
+       * одразу робимо один DELTA.
+       *
+       * Повний місяць повторно
+       * не завантажуємо.
+       */
+      void pollDelta();
 
 
       const intervalId =
@@ -965,8 +1235,9 @@ export default function OperationJournal({
       };
     },
     [
-      journal?.live,
-      pollDelta
+    active,
+    journal?.live,
+    pollDelta
     ]
   );
 

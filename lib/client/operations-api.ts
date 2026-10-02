@@ -10,6 +10,11 @@ import {
 } from "@/lib/client/api-client";
 
 
+export type OperationFormSchemaMode =
+  "LIGHT" |
+  "FULL";
+
+
 export type GetOperationFormSchemaOptions = {
   operationType?:
     string | null;
@@ -19,6 +24,14 @@ export type GetOperationFormSchemaOptions = {
 
   article?:
     string | null;
+
+  /*
+   * Якщо не задано:
+   * - без operationType → LIGHT
+   * - з operationType → FULL
+   */
+  schemaMode?:
+    OperationFormSchemaMode;
 
   signal?:
     AbortSignal;
@@ -37,6 +50,9 @@ export type OperationFormSchemaSelection = {
 
   article?:
     string | null;
+
+  schemaMode?:
+    OperationFormSchemaMode;
 };
 
 
@@ -82,8 +98,12 @@ type SchemaCacheEntry = {
  * - після успішного write cache очищається;
  * - retry може примусово обійти cache через cacheMode="reload".
  */
-const OPERATION_SCHEMA_CACHE_TTL_MS =
-  30_000;
+const OPERATION_SCHEMA_LIGHT_CACHE_TTL_MS =
+  10 * 60_000;
+
+
+const OPERATION_SCHEMA_FULL_CACHE_TTL_MS =
+  2 * 60_000;
 
 
 const operationSchemaCache =
@@ -111,18 +131,41 @@ function cleanSelectionValue(
   return value?.trim() ?? "";
 }
 
+function resolveOperationSchemaMode(
+  options:
+    OperationFormSchemaSelection
+): OperationFormSchemaMode {
+  if (
+    options.schemaMode
+  ) {
+    return options.schemaMode;
+  }
+
+
+  return cleanSelectionValue(
+    options.operationType
+  )
+    ? "FULL"
+    : "LIGHT";
+}
 
 function buildOperationSchemaCacheKey(
   options:
     OperationFormSchemaSelection
 ): string {
   return JSON.stringify([
+    resolveOperationSchemaMode(
+      options
+    ),
+
     cleanSelectionValue(
       options.operationType
     ),
+
     cleanSelectionValue(
       options.category
     ),
+
     cleanSelectionValue(
       options.article
     )
@@ -134,8 +177,16 @@ function buildOperationSchemaPath(
   options:
     OperationFormSchemaSelection
 ): string {
-  const params =
+    const params =
     new URLSearchParams();
+
+
+  params.set(
+    "mode",
+    resolveOperationSchemaMode(
+      options
+    ).toLowerCase()
+  );
 
 
   if (
@@ -279,16 +330,22 @@ export async function getOperationFormSchema(
   );
 
 
-  const selection:
+    const selection:
     OperationFormSchemaSelection = {
       operationType:
         options.operationType ?? null,
 
+
       category:
         options.category ?? null,
 
+
       article:
-        options.article ?? null
+        options.article ?? null,
+
+
+      schemaMode:
+        options.schemaMode
     };
 
 
@@ -355,7 +412,7 @@ export async function getOperationFormSchema(
     Promise<OperationFormSchema>;
 
 
-  requestPromise =
+    requestPromise =
     fetchOperationFormSchemaFromServer(
       selection
     )
@@ -365,13 +422,27 @@ export async function getOperationFormSchema(
             generation ===
               operationSchemaCacheGeneration
           ) {
+            const schemaMode =
+              resolveOperationSchemaMode(
+                selection
+              );
+
+
+            const ttlMs =
+              schemaMode ===
+                "LIGHT"
+                ? OPERATION_SCHEMA_LIGHT_CACHE_TTL_MS
+                : OPERATION_SCHEMA_FULL_CACHE_TTL_MS;
+
+
             operationSchemaCache.set(
               cacheKey,
               {
                 schema,
+
                 expiresAt:
                   Date.now() +
-                  OPERATION_SCHEMA_CACHE_TTL_MS
+                  ttlMs
               }
             );
           }
@@ -440,80 +511,6 @@ export async function prefetchOperationFormSchema(
     /* no-op */
   }
 }
-
-
-export async function prefetchOperationFormSchemas(
-  selections:
-    readonly OperationFormSchemaSelection[],
-
-  concurrency =
-    2
-): Promise<void> {
-  const uniqueSelections =
-    Array.from(
-      new Map(
-        selections.map(
-          selection => [
-            buildOperationSchemaCacheKey(
-              selection
-            ),
-            selection
-          ]
-        )
-      ).values()
-    );
-
-
-  if (
-    !uniqueSelections.length
-  ) {
-    return;
-  }
-
-
-  let cursor =
-    0;
-
-
-  const workerCount =
-    Math.max(
-      1,
-      Math.min(
-        concurrency,
-        uniqueSelections.length
-      )
-    );
-
-
-  async function worker() {
-    while (
-      cursor <
-      uniqueSelections.length
-    ) {
-      const index =
-        cursor;
-
-      cursor +=
-        1;
-
-      await prefetchOperationFormSchema(
-        uniqueSelections[index]
-      );
-    }
-  }
-
-
-  await Promise.all(
-    Array.from(
-      {
-        length:
-          workerCount
-      },
-      () => worker()
-    )
-  );
-}
-
 
 /*
  * PATCH 40 / PATCH 44

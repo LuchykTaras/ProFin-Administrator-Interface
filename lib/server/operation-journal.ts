@@ -37,14 +37,27 @@ type GetOperationJournalParams = {
   requestId:
     string;
 
+
   context:
     SessionContext;
+
 
   requestedMonthKey?:
     string | null;
 
+
   afterRow?:
     number | null;
+
+
+  /*
+   * PATCH 48
+   *
+   * Сигнал скасування
+   * від HTTP route.
+   */
+  signal:
+    AbortSignal;
 };
 
 
@@ -940,23 +953,40 @@ export async function getOperationJournal(
           OperationJournalMode;
       },
       AppsScriptJournalData
-    >({
+        >({
       requestId:
         params.requestId,
+
       command:
         "getOperationJournal",
+
       context:
         params.context,
+
       idempotencyKey:
         null,
+
+      /*
+       * PATCH 48
+       *
+       * Route AbortSignal
+       * передаємо transport-рівню.
+       */
+      signal:
+        params.signal,
+
       payload: {
         monthKey:
           month.monthKey,
+
         from:
           month.from,
+
         to:
           month.to,
+
         afterRow,
+
         mode
       }
     });
