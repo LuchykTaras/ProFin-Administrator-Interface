@@ -15,6 +15,7 @@ export type AppsScriptAdapterCommand =
   | "idempotencyProbe"
   | "getOperationFormSchemaWeb"
   | "getOperationJournal"
+  | "getClientBirthdaysWeb"
   | "createOperationWeb"
   | "createTransfer"
   | "acceptTransfer"

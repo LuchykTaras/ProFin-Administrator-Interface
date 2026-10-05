@@ -2217,7 +2217,7 @@ export default function OperationJournal({
               styles.liveFooter
             }
           >
-            Автооновлення кожні 6 секунд
+            Автооновлення кожні 12 секунд
           </span>
         ) : (
           <span>

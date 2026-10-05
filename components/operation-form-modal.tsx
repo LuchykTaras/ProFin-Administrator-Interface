@@ -35,6 +35,7 @@ import {
 
 import type {
   CreateOperationInput,
+  CreateOperationNewClientInput,
   CreateOperationResult,
   OperationDraft,
   OperationFormField,
@@ -51,6 +52,15 @@ type OperationFormModalProps = {
   initialOperationType:
     string | null;
 
+  initialNewClient?:
+    boolean;
+
+  onSuccess?:
+    (
+      result:
+        CreateOperationResult
+    ) => void;
+
   onClose:
     () => void;
 };
@@ -66,6 +76,64 @@ type SchemaSelection = {
   article:
     string | null;
 };
+
+
+type NewClientDraft = {
+  name: string;
+
+  birthDate: string;
+
+  trustedPerson: string;
+
+  trustedPhone: string;
+};
+
+
+const EMPTY_NEW_CLIENT_DRAFT:
+NewClientDraft = {
+  name: "",
+  birthDate: "",
+  trustedPerson: "",
+  trustedPhone: ""
+};
+
+
+function normalizeNewClientDraft(
+  draft:
+    NewClientDraft
+): CreateOperationNewClientInput | null {
+  const name =
+    draft.name.trim();
+
+  const birthDate =
+    draft.birthDate.trim();
+
+  const trustedPerson =
+    draft.trustedPerson.trim();
+
+  const trustedPhone =
+    draft.trustedPhone.trim();
+
+
+  if (
+    !name ||
+    !trustedPerson ||
+    !trustedPhone ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      birthDate
+    )
+  ) {
+    return null;
+  }
+
+
+  return {
+    name,
+    birthDate,
+    trustedPerson,
+    trustedPhone
+  };
+}
 
 
 /*
@@ -234,7 +302,10 @@ function buildCreateOperationInput(
     OperationFormSchema,
 
   initialOperationType:
-    string | null
+    string | null,
+
+  newClient:
+    CreateOperationNewClientInput | null
 ): CreateOperationInput {
   const operation:
     Record<
@@ -377,12 +448,28 @@ function buildCreateOperationInput(
    * тип, з якого була
    * відкрита модалка.
    */
-  if (
+    if (
     !operation.type &&
     initialOperationType
   ) {
     operation.type =
       initialOperationType;
+  }
+
+
+  if (
+    newClient
+  ) {
+    /*
+     * Новий клієнт і patientId
+     * одночасно передаватися
+     * не повинні.
+     */
+    delete operation.patientId;
+
+
+    operation.newClient =
+      newClient;
   }
 
 
@@ -850,6 +937,8 @@ export function OperationFormModal({
   open,
   domainReady,
   initialOperationType,
+  initialNewClient = false,
+  onSuccess,
   onClose
 }: OperationFormModalProps) {
   const [
@@ -874,6 +963,13 @@ export function OperationFormModal({
       {}
     );
 
+const [
+  newClientDraft,
+  setNewClientDraft
+] =
+  useState<NewClientDraft>(
+    EMPTY_NEW_CLIENT_DRAFT
+  );
 
   const [
     loading,
@@ -1028,9 +1124,9 @@ export function OperationFormModal({
           }
 
 
-          console.error(
-            loadError
-          );
+          console.warn(
+         "[OPERATION_FORM_SCHEMA_LOAD_FAILED]",
+          loadError);
 
 
           setSchema(
@@ -1092,13 +1188,18 @@ export function OperationFormModal({
 
 
       setDraft(
-        {}
-      );
+  {}
+);
 
 
-      setSubmitError(
-        ""
-      );
+setNewClientDraft(
+  EMPTY_NEW_CLIENT_DRAFT
+);
+
+
+setSubmitError(
+  ""
+);
 
 
       setSubmitResult(
@@ -1119,11 +1220,12 @@ export function OperationFormModal({
       idempotencyKeyRef.current =
         null;
     },
-    [
-      open,
-      initialOperationType
-    ]
-  );
+[
+  open,
+  initialOperationType,
+  initialNewClient
+]
+);
 
 
   /*
@@ -1296,23 +1398,42 @@ export function OperationFormModal({
 
 
   const visibleSections =
-    useMemo(
-      () =>
-        schema
-          ?.sections
-          .filter(
-            section =>
-              section.visible
-          ) ??
-        [],
-      [
-        schema
-      ]
-    );
+  useMemo(
+    () =>
+      schema
+        ?.sections
+        .filter(
+          section =>
+            section.visible
+        ) ??
+      [],
+    [
+      schema
+    ]
+  );
 
 
-  const pendingSections =
-    useMemo(
+const normalizedNewClient =
+  useMemo(
+    () =>
+      initialNewClient
+        ? normalizeNewClientDraft(
+            newClientDraft
+          )
+        : null,
+    [
+      initialNewClient,
+      newClientDraft
+    ]
+  );
+
+const newClientFieldsComplete =
+  !initialNewClient ||
+  normalizedNewClient !==
+    null;
+
+const pendingSections =
+  useMemo(
       () =>
         schema
           ?.sections
@@ -1388,15 +1509,63 @@ export function OperationFormModal({
 
 
   /*
-   * type
-   *   ↓
-   * category
-   *   ↓
-   * article
-   *
-   * викликають dependent schema.
-   */
-  function changeField(
+ * Поля нового клієнта
+ * живуть окремо від server-driven
+ * OperationDraft.
+ */
+function changeNewClientField(
+  field:
+    keyof NewClientDraft,
+
+  value:
+    string
+) {
+  if (
+    submitting
+  ) {
+    return;
+  }
+
+
+  idempotencyKeyRef.current =
+    null;
+
+
+  setSubmitError(
+    ""
+  );
+
+
+  setSubmitResult(
+    null
+  );
+
+
+  setSubmitReplayed(
+    false
+  );
+
+
+  setNewClientDraft(
+    current => ({
+      ...current,
+      [field]:
+        value
+    })
+  );
+}
+
+
+/*
+ * type
+ *   ↓
+ * category
+ *   ↓
+ * article
+ *
+ * викликають dependent schema.
+ */
+function changeField(
     field:
       OperationFormField,
 
@@ -1524,14 +1693,15 @@ export function OperationFormModal({
 
 
   const canSubmit =
-    Boolean(
-      domainReady &&
-      schema?.canSubmit &&
-      requiredFieldsComplete &&
-      !loading &&
-      !submitting &&
-      !submitResult
-    );
+  Boolean(
+    domainReady &&
+    schema?.canSubmit &&
+    requiredFieldsComplete &&
+    newClientFieldsComplete &&
+    !loading &&
+    !submitting &&
+    !submitResult
+  );
 
 
   /*
@@ -1584,11 +1754,12 @@ export function OperationFormModal({
        * domain-сценарію.
        */
       const operation =
-        buildCreateOperationInput(
-          draft,
-          schema,
-          initialOperationType
-        );
+  buildCreateOperationInput(
+    draft,
+    schema,
+    initialOperationType,
+    normalizedNewClient
+  );
 
 
       const result =
@@ -1601,17 +1772,23 @@ export function OperationFormModal({
 
 
       setSubmitResult(
-        result.operation
-      );
+  result.operation
+);
 
 
-      setSubmitReplayed(
-        result.idempotencyReplayed
-      );
+setSubmitReplayed(
+  result.idempotencyReplayed
+);
 
-    } catch (
-      submitOperationError
-    ) {
+
+onSuccess?.(
+  result.operation
+);
+
+
+} catch (
+  submitOperationError
+) {
       /*
        * Не робимо console.error
        * для очікуваної API-відмови,
@@ -1693,11 +1870,13 @@ export function OperationFormModal({
               id=
                 "operation-modal-title"
             >
-              {
-                initialOperationType
-                  ? `Нова операція — ${initialOperationType}`
-                  : "Нова операція"
-              }
+             {
+      initialNewClient
+      ? "Додати нового клієнта у Базу клієнтів"
+      : initialOperationType
+      ? `Нова операція — ${initialOperationType}`
+      : "Нова операція"
+}
             </h2>
 
 
@@ -1946,13 +2125,387 @@ export function OperationFormModal({
 
 
           {
-            !error &&
-            schema &&
-            (
-              <>
-                {
-                  visibleSections.map(
-                    section => (
+  !error &&
+  schema &&
+  (
+    <>
+      {
+        initialNewClient &&
+        (
+          <section
+            className=
+              "operation-form-section"
+          >
+            <div
+              className=
+                "operation-section-heading"
+            >
+              <div>
+                <h3>
+                  Новий пацієнт
+                </h3>
+
+                <p>
+                  Дані будуть використані для створення картки у «Клієнтській базі».
+                </p>
+              </div>
+
+              <span
+                className=
+                  "operation-section-badge"
+              >
+                4 поля
+              </span>
+            </div>
+
+
+            <div
+              className=
+                "operation-fields-grid"
+            >
+              <label
+                className=
+                  "operation-field operation-field-full"
+              >
+                <span>
+                  ПІБ дитини
+
+                  <b
+                    className=
+                      "operation-required-mark"
+                  >
+                    *
+                  </b>
+                </span>
+
+                <div
+                  className=
+                    "operation-input-shell"
+                >
+                  <input
+                    type="text"
+
+                    value={
+                      newClientDraft.name
+                    }
+
+                    disabled={
+                      submitting ||
+                      Boolean(
+                        submitResult
+                      )
+                    }
+
+                    placeholder=
+                      "Наприклад: Іваненко Марія Олександрівна"
+
+                    onChange={
+                      event =>
+                        changeNewClientField(
+                          "name",
+                          event.target.value
+                        )
+                    }
+                  />
+                </div>
+              </label>
+
+
+              <label
+                className=
+                  "operation-field"
+              >
+                <span>
+                  Дата народження
+
+                  <b
+                    className=
+                      "operation-required-mark"
+                  >
+                    *
+                  </b>
+                </span>
+
+                <div
+                  className=
+                    "operation-input-shell with-icon"
+                >
+                  <CalendarDays
+                    size={16}
+                  />
+
+                  <input
+                    type="date"
+
+                    value={
+                      newClientDraft.birthDate
+                    }
+
+                    disabled={
+                      submitting ||
+                      Boolean(
+                        submitResult
+                      )
+                    }
+
+                    onChange={
+                      event =>
+                        changeNewClientField(
+                          "birthDate",
+                          event.target.value
+                        )
+                    }
+                  />
+                </div>
+              </label>
+
+
+              <label
+                className=
+                  "operation-field"
+              >
+                <span>
+                  Довірена особа
+
+                  <b
+                    className=
+                      "operation-required-mark"
+                  >
+                    *
+                  </b>
+                </span>
+
+                <div
+                  className=
+                    "operation-input-shell"
+                >
+                  <input
+                    type="text"
+
+                    value={
+                      newClientDraft.trustedPerson
+                    }
+
+                    disabled={
+                      submitting ||
+                      Boolean(
+                        submitResult
+                      )
+                    }
+
+                    placeholder=
+                      "ПІБ довіреної особи"
+
+                    onChange={
+                      event =>
+                        changeNewClientField(
+                          "trustedPerson",
+                          event.target.value
+                        )
+                    }
+                  />
+                </div>
+              </label>
+
+
+              <label
+                className=
+                  "operation-field"
+              >
+                <span>
+                  Телефон довіреної особи
+
+                  <b
+                    className=
+                      "operation-required-mark"
+                  >
+                    *
+                  </b>
+                </span>
+
+                <div
+                  className=
+                    "operation-input-shell"
+                >
+                  <input
+                    type="tel"
+
+                    value={
+                      newClientDraft.trustedPhone
+                    }
+
+                    disabled={
+                      submitting ||
+                      Boolean(
+                        submitResult
+                      )
+                    }
+
+                    placeholder=
+                      "+380XXXXXXXXX"
+
+                    onChange={
+                      event =>
+                        changeNewClientField(
+                          "trustedPhone",
+                          event.target.value
+                        )
+                    }
+                  />
+                </div>
+              </label>
+            </div>
+          </section>
+        )
+      }
+
+
+      {
+        initialNewClient &&
+        (
+          <section
+            className=
+              "operation-form-section"
+          >
+            <div
+              className=
+                "operation-section-heading"
+            >
+              <div>
+                <h3>
+                  Операція
+                </h3>
+
+                <p>
+                  Оберіть тип операції, після чого domain core завантажить лікаря, категорію, статтю та інші потрібні поля.
+                </p>
+              </div>
+            </div>
+
+
+            <div
+              className=
+                "operation-fields-grid"
+            >
+              <label
+                className=
+                  "operation-field"
+              >
+                <span>
+                  Тип операції
+
+                  <b
+                    className=
+                      "operation-required-mark"
+                  >
+                    *
+                  </b>
+                </span>
+
+                <div
+                  className=
+                    "operation-select-shell"
+                >
+                  <select
+                    value={
+                      String(
+                        draft.type ??
+                        ""
+                      )
+                    }
+
+                    disabled={
+                      loading ||
+                      submitting ||
+                      Boolean(
+                        submitResult
+                      )
+                    }
+
+                    onChange={
+                      event => {
+                        const value =
+                          event.target.value;
+
+
+                        idempotencyKeyRef.current =
+                          null;
+
+
+                        setDraft(
+                          current => ({
+                            ...current,
+
+                            type:
+                              value,
+
+                            category:
+                              "",
+
+                            article:
+                              ""
+                          })
+                        );
+
+
+                        void loadSchemaForSelection({
+                          operationType:
+                            value.trim() ||
+                            null,
+
+                          category:
+                            null,
+
+                          article:
+                            null
+                        });
+                      }
+                    }
+                  >
+                    <option value="">
+                      Оберіть тип операції
+                    </option>
+
+                    {
+                      schema.operationTypes
+                        .filter(
+                          item =>
+                            item.enabled
+                        )
+                        .map(
+                          item => (
+                            <option
+                              key={
+                                item.value
+                              }
+
+                              value={
+                                item.value
+                              }
+                            >
+                              {
+                                item.label
+                              }
+                            </option>
+                          )
+                        )
+                    }
+                  </select>
+
+                  <ChevronDown
+                    size={16}
+                  />
+                </div>
+              </label>
+            </div>
+          </section>
+        )
+      }
+
+
+                    {
+                     visibleSections.map(
+                      section => (
                       <FormSection
                         key={
                           section.id
@@ -2144,12 +2697,21 @@ export function OperationFormModal({
                           ? "Форма готова"
                           : loading
                             ? "Оновлення domain schema"
-                            : !requiredFieldsComplete
-                              ? "Заповніть обов’язкові поля"
-                              : "Очікує domain adapter"
-                      )
-            }
-          </div>
+                            : initialNewClient &&
+                          !newClientFieldsComplete
+                         ? "Заповніть дані нового пацієнта"
+                        : !requiredFieldsComplete
+                        ? "Заповніть обов’язкові поля"
+                       : initialNewClient &&
+                      !String(
+                     draft.type ??
+                     ""
+                    ).trim()
+                    ? "Оберіть тип операції"
+                    : "Очікує domain adapter"
+                     )
+      }
+</div>
 
 
           <div
@@ -2210,13 +2772,25 @@ export function OperationFormModal({
               }
 
 
-              {
-                submitResult
-                  ? "Проведено"
-                  : submitting
-                    ? "Проводимо…"
-                    : "Провести операцію"
-              }
+    {
+          submitResult
+          ? (
+          initialNewClient
+          ? "Клієнта створено"
+          : "Проведено"
+      )
+    : submitting
+      ? (
+          initialNewClient
+            ? "Створюємо…"
+            : "Проводимо…"
+        )
+      : (
+          initialNewClient
+            ? "Створити клієнта і провести"
+            : "Провести операцію"
+        )
+}
             </button>
           </div>
         </footer>

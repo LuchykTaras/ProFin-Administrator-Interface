@@ -19,6 +19,7 @@ import {
   Plus,
   RotateCcw,
   ShieldCheck,
+  UserPlus,
   UserRound,
   Users,
   WalletCards
@@ -42,6 +43,10 @@ import type {
 import {
   OperationFormModal
 } from "@/components/operation-form-modal";
+
+import {
+  ClientBirthdays
+} from "@/components/client-birthdays";
 
 import {
   getApiErrorMessage
@@ -619,6 +624,22 @@ export default function Home() {
       null
     );
 
+const [
+  newClientMode,
+  setNewClientMode
+] =
+  useState(
+    false
+  );
+
+
+const [
+  birthdayRefreshKey,
+  setBirthdayRefreshKey
+] =
+  useState(
+    0
+  );
 
   const [
     operationTypes,
@@ -1818,6 +1839,8 @@ export default function Home() {
                                       article:
                                         null
                                     });
+                                    
+                                    setNewClientMode(false);
 
                                     setSelectedOperationType(
                                       operationType.value
@@ -1830,18 +1853,102 @@ export default function Home() {
                                 }
                               />
                             )
-                          )
+                                                    )
                         }
+
+
+                        <QuickAction
+                          icon={
+                            UserPlus
+                          }
+
+                          title=
+                            "Додати нового клієнта у Базу клієнтів"
+
+                          subtitle={
+                            bootstrap
+                              .permissions
+                              .operationCreate
+                              ? (
+                                  domainReady
+                                    ? "Створити картку пацієнта"
+                                    : "Очікує domain adapter"
+                                )
+                              : "Недостатньо прав"
+                          }
+
+                          tone=
+                            "purple"
+
+                          disabled={
+                            !bootstrap
+                              .permissions
+                              .operationCreate ||
+                            !domainReady
+                          }
+
+                          onIntent={
+                            () => {
+                              void prefetchOperationFormSchema({
+                                operationType:
+                                  null,
+
+                                category:
+                                  null,
+
+                                article:
+                                  null
+                              });
+                            }
+                          }
+
+                          onClick={
+                            () => {
+                              void prefetchOperationFormSchema({
+                                operationType:
+                                  null,
+
+                                category:
+                                  null,
+
+                                article:
+                                  null
+                              });
+
+
+                              setSelectedOperationType(
+                                null
+                              );
+
+
+                              setNewClientMode(
+                                true
+                              );
+
+
+                              setOperationModalOpen(
+                                true
+                              );
+                            }
+                          }
+                        />
                       </div>
+
+
+
 
 
                       <div
                         className=
                           "cash-cancel-action"
 
+
+
                         style={{
                           width:
                             "min(280px, 100%)",
+
+
 
                           marginTop:
                             14
@@ -2091,23 +2198,38 @@ export default function Home() {
         }
 
 
-        <div
+                <div
           className=
             "dashboard"
+
           hidden={
             active !==
               "journal"
           }
+
           aria-hidden={
             active !==
               "journal"
           }
         >
+          <ClientBirthdays
+            active={
+              active ===
+                "journal"
+            }
+
+            refreshKey={
+              birthdayRefreshKey
+            }
+          />
+
+
           <OperationJournal
             active={
               active ===
                 "journal"
             }
+
             onAdapterReady={
               markDomainAdapterReady
             }
@@ -2450,18 +2572,45 @@ export default function Home() {
         </footer>
 
 
-        <OperationFormModal
+          <OperationFormModal
           open={
             operationModalOpen
           }
+
+
 
           domainReady={
             domainReady
           }
 
+
+
           initialOperationType={
             selectedOperationType
           }
+
+
+
+          initialNewClient={
+            newClientMode
+          }
+
+
+
+          onSuccess={
+            result => {
+              if (
+                result.clientCreated
+              ) {
+                setBirthdayRefreshKey(
+                  value =>
+                    value + 1
+                );
+              }
+            }
+          }
+
+
 
           onClose={
             () => {
@@ -2469,8 +2618,14 @@ export default function Home() {
                 false
               );
 
+
               setSelectedOperationType(
                 null
+              );
+
+
+              setNewClientMode(
+                false
               );
             }
           }
