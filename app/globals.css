@@ -2369,3 +2369,433 @@ td {
     0 4px 16px
     rgba(17, 63, 51, 0.06);
 }
+
+.client-birthdays {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.client-birthdays-panel {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  box-sizing: border-box;
+
+  border: 1px solid #dfe8e2;
+  border-radius: 20px;
+
+  background: #ffffff;
+
+  /*
+   * Сам panel більше НЕ скролиться.
+   *
+   * Шапка знаходиться у panel,
+   * а прокрутка буде тільки
+   * у .client-birthdays-scroll.
+   */
+  overflow: hidden;
+}
+
+
+/* Chrome / Edge — scrollbar тільки списку */
+
+.client-birthdays-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.client-birthdays-scroll::-webkit-scrollbar-track {
+  margin: 5px 0;
+
+  background: #e8eef7;
+
+  border-radius: 999px;
+}
+
+.client-birthdays-scroll::-webkit-scrollbar-thumb {
+  min-height: 38px;
+
+  background: #d89a25;
+
+  border: 2px solid #e8eef7;
+  border-radius: 999px;
+}
+
+.client-birthdays-scroll::-webkit-scrollbar-thumb:hover {
+  background: #c78614;
+}
+
+
+/* Sticky header */
+
+.client-birthdays-header {
+  position: relative;
+
+  flex: 0 0 auto;
+
+  width: 100%;
+  min-width: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 14px;
+
+  margin: 0;
+
+  padding: 12px 16px 10px;
+
+  box-sizing: border-box;
+
+  background: #ffffff;
+
+  border-bottom: 1px solid #e6ece8;
+}
+
+.client-birthdays-heading-copy {
+  min-width: 0;
+}
+
+.client-birthdays-heading-copy h2 {
+  margin: 0;
+
+  font-size: 18px;
+  line-height: 1.25;
+
+  color: #10271d;
+}
+
+.client-birthdays-heading-copy p {
+  margin: 5px 0 0;
+
+  font-size: 13px;
+  line-height: 1.35;
+
+  color: #718078;
+}
+
+
+/* Counter */
+
+.client-birthdays-count {
+  flex-shrink: 0;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  min-width: 48px;
+  height: 34px;
+
+  padding: 0 11px;
+
+  border: 1px solid #d7e5dc;
+  border-radius: 999px;
+
+  background: #eef8f2;
+
+  color: #14754c;
+
+  font-size: 13px;
+  font-weight: 700;
+}
+
+
+/* Scrollable content */
+
+/* Scrollable content */
+
+.client-birthdays-scroll {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+
+  /*
+   * Компактний viewport.
+   * Видно кілька іменинників,
+   * решта прокручується всередині.
+   */
+  height: 250px;
+  max-height: 250px;
+
+  flex: 0 0 250px;
+
+  display: block;
+
+  padding: 10px 12px 12px;
+
+  box-sizing: border-box;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  overscroll-behavior-y: contain;
+
+  scrollbar-gutter: stable;
+
+  scrollbar-width: thin;
+  scrollbar-color: #d89a25 #e8eef7;
+
+  text-align: left;
+}
+
+.client-birthdays-scroll:focus {
+  outline: none;
+}
+
+
+.client-birthdays-list {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+
+  display: flex;
+  flex-direction: column;
+
+  align-items: stretch;
+  justify-content: flex-start;
+
+  gap: 8px;
+
+  margin: 0;
+  padding: 0;
+
+  box-sizing: border-box;
+
+  text-align: left;
+}
+
+.client-birthday-row {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    112px;
+
+  align-items: center;
+  justify-items: stretch;
+
+  align-self: stretch;
+  justify-self: stretch;
+
+  column-gap: 20px;
+
+  margin: 0;
+
+  padding: 12px 14px;
+
+  box-sizing: border-box;
+
+  border: 1px solid #e7eee9;
+  border-radius: 14px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 1px 2px rgba(16, 39, 29, 0.03);
+
+  text-align: left;
+
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+
+/* Main information */
+
+.client-birthday-main {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+
+  display: flex;
+  flex-direction: column;
+
+  align-items: flex-start;
+  justify-content: center;
+
+  justify-self: stretch;
+
+  gap: 3px;
+
+  margin: 0;
+
+  text-align: left;
+}
+
+.client-birthday-main strong {
+  width: 100%;
+
+  margin: 0;
+
+  overflow: hidden;
+
+  color: #10271d;
+
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+
+  text-align: left;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.client-birthday-meta {
+  width: 100%;
+
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+
+  gap: 5px;
+
+  margin: 0;
+
+  color: #40574b;
+
+  font-size: 12px;
+  line-height: 1.3;
+
+  text-align: left;
+}
+
+.client-birthday-main small {
+  width: 100%;
+
+  margin: 0;
+
+  color: #78887f;
+
+  font-size: 11px;
+  line-height: 1.3;
+
+  text-align: left;
+}
+
+
+/* Day badge */
+
+.client-birthday-day {
+  justify-self: end;
+  align-self: center;
+
+  width: auto;
+  min-width: 104px;
+  max-width: 112px;
+
+  flex-shrink: 0;
+
+  margin: 0;
+
+  padding: 7px 12px;
+
+  border: 1px solid #e1e9e4;
+  border-radius: 999px;
+
+  background: #f4f7f5;
+
+  color: #476052;
+
+  text-align: center;
+
+  white-space: nowrap;
+
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.client-birthday-day.today {
+  border-color: #bce4cc;
+
+  background: #daf5e5;
+
+  color: #08794b;
+}
+
+
+/* Loading / error / empty state */
+
+.client-birthdays-state {
+  min-height: 100px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 10px;
+
+  padding: 20px;
+
+  color: #52665b;
+
+  font-size: 14px;
+}
+
+.client-birthdays-error {
+  color: #b54747;
+}
+
+
+/* Responsive */
+
+@media (max-width: 1100px) {
+  .client-birthdays-scroll {
+    height: 230px;
+    max-height: 230px;
+    flex-basis: 230px;
+  }
+
+  .client-birthday-row {
+    column-gap: 12px;
+  }
+}
+
+
+@media (max-width: 768px) {
+
+  .client-birthdays-scroll {
+    height: 210px;
+    max-height: 210px;
+    flex-basis: 210px;
+  }
+
+  .client-birthdays-header {
+    padding:
+      15px
+      16px
+      13px;
+  }
+
+  .client-birthdays-scroll {
+  padding: 9px;
+}
+
+  .client-birthday-row {
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  column-gap: 12px;
+
+  padding: 10px 12px;
+}
+}
+

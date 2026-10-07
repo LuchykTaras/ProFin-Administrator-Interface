@@ -217,42 +217,53 @@ export function ClientBirthdays({
 
 
   return (
-    <section
+  <section
+  className=
+    "card client-birthdays"
+>
+  <div
+    className=
+      "client-birthdays-panel"
+  >
+    <div
       className=
-        "card client-birthdays"
+        "section-heading compact client-birthdays-header"
     >
       <div
         className=
-          "section-heading compact"
+          "client-birthdays-heading-copy"
       >
-        <div>
-          <h2>
-            🎂 Іменинники
-          </h2>
+        <h2>
+          🎂 Іменинники
+        </h2>
 
-          <p>
-            Дані з «Клієнтської бази» · сьогодні + 7 днів
-          </p>
-        </div>
-
-
-        <span
-          className=
-            "client-birthdays-count"
-        >
-          <CakeSlice
-            size={16}
-          />
-
-          {
-            data
-              ? data.todayCount
-              : "—"
-          }
-        </span>
+        <p>
+          Дані з «Клієнтської бази» · сьогодні + 7 днів
+        </p>
       </div>
 
 
+      <span
+        className=
+          "client-birthdays-count"
+      >
+        <CakeSlice
+          size={16}
+        />
+
+        {
+          data
+            ? data.todayCount
+            : "—"
+        }
+      </span>
+    </div>
+
+
+  <div
+  className=
+    "client-birthdays-scroll"
+>
       {
         loading &&
         !data &&
@@ -341,9 +352,25 @@ export function ClientBirthdays({
                         {item.name}
                       </strong>
 
-                      <span>
-                        {formatBirthday(item.nextBirthday)} · {item.ageTurning} р.
-                      </span>
+                      <div
+                        className=
+                          "client-birthday-meta"
+                      >
+                        <span>
+                          {formatBirthday(item.nextBirthday)}
+                        </span>
+
+                        <span
+                          aria-hidden=
+                            "true"
+                        >
+                          ·
+                        </span>
+
+                        <span>
+                          {item.ageTurning} р.
+                        </span>
+                      </div>
 
                       {
                         item.doctor &&
@@ -372,6 +399,8 @@ export function ClientBirthdays({
           </div>
         )
       }
-    </section>
-  );
+    </div>
+  </div>
+</section>
+)
 }
