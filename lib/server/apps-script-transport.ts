@@ -90,12 +90,51 @@ type SignedAppsScriptAdapterContext =
   };
 
 
-function getAppsScriptWebAppUrl():
-string {
-  const raw =
+function getAppsScriptWebAppUrl(
+  annualRoute:
+    AppsScriptAnnualRoute
+): string {
+  const routeUrl =
+    annualRoute
+      .adapterWebAppUrl
+      ?.trim() ||
+    null;
+
+
+  const fallbackUrl =
     process.env
       .APPS_SCRIPT_WEB_APP_URL
-      ?.trim();
+      ?.trim() ||
+    null;
+
+
+  /*
+   * PATCH 50.
+   *
+   * TEST route НІКОЛИ
+   * не використовує production
+   * Apps Script deployment
+   * як fallback.
+   *
+   * PRODUCTION route:
+   * 1. використовує URL із registry,
+   *    якщо він заданий;
+   * 2. інакше використовує
+   *    APPS_SCRIPT_WEB_APP_URL.
+   *
+   * TEST route:
+   * використовує ТІЛЬКИ
+   * apps_script_web_app_url
+   * із year_registry.
+   */
+  const raw =
+    annualRoute.routeMode ===
+      "TEST"
+      ? routeUrl
+      : (
+          routeUrl ||
+          fallbackUrl
+        );
 
 
   if (!raw) {
@@ -104,13 +143,22 @@ string {
         503,
 
       code:
-        "APPS_SCRIPT_NOT_CONFIGURED",
+        annualRoute.routeMode ===
+          "TEST"
+          ? "TEST_APPS_SCRIPT_NOT_CONFIGURED"
+          : "APPS_SCRIPT_NOT_CONFIGURED",
 
       userMessage:
-        "Apps Script adapter ще не налаштований.",
+        annualRoute.routeMode ===
+          "TEST"
+          ? "Для тестової філії ще не підключено окремий Apps Script adapter."
+          : "Apps Script adapter ще не налаштований.",
 
       technicalMessage:
-        "APPS_SCRIPT_WEB_APP_URL is missing."
+        annualRoute.routeMode ===
+          "TEST"
+          ? "TEST route requires year_registry.apps_script_web_app_url."
+          : "APPS_SCRIPT_WEB_APP_URL is missing."
     });
   }
 
@@ -136,14 +184,14 @@ string {
         "Некоректна конфігурація Apps Script adapter.",
 
       technicalMessage:
-        "APPS_SCRIPT_WEB_APP_URL is not a valid URL."
+        "Apps Script Web App URL is not a valid URL."
     });
   }
 
 
   if (
     parsed.protocol !==
-    "https:"
+      "https:"
   ) {
     throw new AppError({
       status:
@@ -363,10 +411,6 @@ export async function callAppsScriptAdapter<
 ): Promise<
   AppsScriptAdapterResponse<TData>
 > {
-    const url =
-    getAppsScriptWebAppUrl();
-
-
   /*
    * PATCH 48
    *
@@ -405,10 +449,26 @@ export async function callAppsScriptAdapter<
    * Browser не може передати
    * spreadsheetId.
    */
-  const annualRoute =
+    const annualRoute =
     await resolveAppsScriptAnnualRoute(
       params.context,
       params.operationDate
+    );
+
+
+  /*
+   * PATCH 50.
+   *
+   * Apps Script URL визначаємо
+   * тільки після server-side
+   * resolve annual route.
+   *
+   * Browser не може передати
+   * Apps Script URL.
+   */
+  const url =
+    getAppsScriptWebAppUrl(
+      annualRoute
     );
 
 

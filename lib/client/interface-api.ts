@@ -1,5 +1,6 @@
 import type {
-  InterfaceBootstrapData
+  InterfaceBootstrapData,
+  SwitchLocationResult
 } from "@/lib/contracts/interface";
 
 import {
@@ -35,6 +36,49 @@ export async function getInterfaceBootstrap(
 
       userMessage:
         "Сервер не повернув контекст інтерфейсу.",
+
+      requestId:
+        envelope.requestId,
+
+      retryable:
+        true
+    });
+  }
+
+
+  return envelope.data;
+}
+
+export async function switchInterfaceLocation(
+  locationId: string
+): Promise<SwitchLocationResult> {
+  const envelope =
+    await apiRequest<SwitchLocationResult>(
+      "/api/context/switch",
+      {
+        method:
+          "POST",
+
+        body:
+          JSON.stringify({
+            locationId
+          })
+      }
+    );
+
+
+  if (
+    !envelope.data
+  ) {
+    throw new ApiClientError({
+      status:
+        200,
+
+      code:
+        "EMPTY_LOCATION_SWITCH_RESULT",
+
+      userMessage:
+        "Сервер не підтвердив перемикання філії.",
 
       requestId:
         envelope.requestId,

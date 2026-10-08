@@ -13,6 +13,10 @@ import {
 } from "@/lib/server/rbac";
 
 import {
+  listSessionRouteOptions
+} from "@/lib/server/registry";
+
+import {
   requireSessionContext
 } from "@/lib/server/session";
 
@@ -59,16 +63,22 @@ export async function GET(
       db();
 
 
-    await sql`
+        await sql`
       SELECT 1
     `;
+
+
+    const availableLocations =
+      await listSessionRouteOptions(
+        context
+      );
 
 
     return apiOk(
       requestId,
 
       {
-        context: {
+                context: {
           userId:
             context.userId,
 
@@ -102,6 +112,9 @@ export async function GET(
           sessionExpiresAt:
             context.expiresAt
         },
+
+
+        availableLocations,
 
 
         permissions: {

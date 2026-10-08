@@ -28,13 +28,21 @@ export type AppsScriptAnnualRoute = {
     number;
 
   status:
-    "ACTIVE";
+    "ACTIVE" |
+    "READY";
+
+  routeMode:
+    "PRODUCTION" |
+    "TEST";
 
   spreadsheetId:
     string;
 
   schemaVersion:
     string;
+
+  adapterWebAppUrl:
+    string | null;
 };
 
 
@@ -478,36 +486,46 @@ export async function resolveAppsScriptAnnualRoute(
   }
 
 
-  /**************************************************
-   * STATUS
+    /**************************************************
+   * ROUTE MODE / STATUS
    **************************************************/
 
+  const routeMode =
+    resolved.routeMode;
+
+
   const registryStatus =
-    findStringByKeys(
-      resolved,
-      STATUS_KEYS
-    );
+    resolved.status;
+
+
+  const routeUsable =
+    routeMode ===
+      "PRODUCTION"
+      ? registryStatus ===
+          "ACTIVE"
+      : (
+          registryStatus ===
+            "READY" ||
+          registryStatus ===
+            "ACTIVE"
+        );
 
 
   if (
-    registryStatus &&
-    registryStatus
-      .trim()
-      .toUpperCase() !==
-        "ACTIVE"
+    !routeUsable
   ) {
     throw new AppError({
       status:
         409,
 
       code:
-        "ANNUAL_ROUTE_NOT_ACTIVE",
+        "ANNUAL_ROUTE_NOT_USABLE",
 
       userMessage:
-        "Обліковий рік не активний для запису.",
+        "Обліковий маршрут недоступний для поточного режиму.",
 
       technicalMessage:
-        `Expected ACTIVE route, got ${registryStatus}.`,
+        `routeMode=${routeMode}, status=${registryStatus}.`,
 
       retryable:
         false
@@ -620,7 +638,7 @@ export async function resolveAppsScriptAnnualRoute(
   }
 
 
-  return {
+    return {
     projectId:
       context.projectId,
 
@@ -631,10 +649,16 @@ export async function resolveAppsScriptAnnualRoute(
       context.activeYear,
 
     status:
-      "ACTIVE",
+      registryStatus,
+
+    routeMode,
 
     spreadsheetId,
 
-    schemaVersion
+    schemaVersion,
+
+    adapterWebAppUrl:
+      resolved
+        .appsScriptWebAppUrl
   };
 }

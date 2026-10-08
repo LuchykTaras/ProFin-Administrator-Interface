@@ -13,8 +13,19 @@ import type {
 } from "@/lib/server/session";
 
 
+export type YearRouteMode =
+  | "PRODUCTION"
+  | "TEST";
+
+
+export type YearRouteStatus =
+  | "ACTIVE"
+  | "READY";
+
+
 export type YearRoute = {
   projectId: string;
+
   locationId: string;
 
   financialYear: number;
@@ -23,8 +34,199 @@ export type YearRoute = {
 
   schemaVersion: string;
 
-  status: "ACTIVE";
+  status:
+    YearRouteStatus;
+
+  routeMode:
+    YearRouteMode;
+
+  appsScriptWebAppUrl:
+    string | null;
 };
+
+
+export type SessionRouteOption = {
+  locationId: string;
+
+  locationName: string;
+
+  financialYear: number;
+
+  routeMode:
+    YearRouteMode;
+
+  routeStatus:
+    YearRouteStatus;
+
+  isCurrent: boolean;
+};
+
+
+function isUsableRoute(
+  routeMode: YearRouteMode,
+  status: string
+): status is YearRouteStatus {
+  if (
+    routeMode ===
+      "PRODUCTION"
+  ) {
+    return (
+      status ===
+      "ACTIVE"
+    );
+  }
+
+
+  return (
+    status ===
+      "READY" ||
+    status ===
+      "ACTIVE"
+  );
+}
+
+
+export async function listSessionRouteOptions(
+  context: SessionContext
+): Promise<SessionRouteOption[]> {
+  const sql =
+    db();
+
+
+  const rows =
+    await sql`
+      SELECT
+        l.location_id AS
+          "locationId",
+
+        l.name AS
+          "locationName",
+
+        yr.financial_year AS
+          "financialYear",
+
+        yr.route_mode AS
+          "routeMode",
+
+        yr.status AS
+          "routeStatus"
+
+      FROM user_locations ul
+
+      INNER JOIN locations l
+        ON l.project_id =
+           ul.project_id
+
+        AND l.location_id =
+            ul.location_id
+
+        AND l.status =
+            'ACTIVE'
+
+      INNER JOIN projects p
+        ON p.project_id =
+           ul.project_id
+
+        AND p.status =
+            'ACTIVE'
+
+      INNER JOIN year_registry yr
+        ON yr.project_id =
+           ul.project_id
+
+        AND yr.location_id =
+            ul.location_id
+
+        AND yr.financial_year =
+            p.active_year
+
+      WHERE
+        ul.user_id =
+          ${context.userId}
+
+        AND ul.project_id =
+          ${context.projectId}
+
+        AND p.active_year =
+          ${context.activeYear}
+
+        AND (
+          (
+            yr.route_mode =
+              'PRODUCTION'
+
+            AND yr.status =
+              'ACTIVE'
+          )
+
+          OR
+
+          (
+            yr.route_mode =
+              'TEST'
+
+            AND yr.status IN (
+              'READY',
+              'ACTIVE'
+            )
+          )
+        )
+
+      ORDER BY
+        CASE
+          WHEN yr.route_mode =
+            'PRODUCTION'
+          THEN 0
+          ELSE 1
+        END,
+
+        l.name
+    `;
+
+
+  return rows.map(
+    raw => {
+      const row =
+        raw as unknown as {
+          locationId: string;
+
+          locationName: string;
+
+          financialYear: number;
+
+          routeMode:
+            YearRouteMode;
+
+          routeStatus:
+            YearRouteStatus;
+        };
+
+
+      return {
+        locationId:
+          row.locationId,
+
+        locationName:
+          row.locationName,
+
+        financialYear:
+          Number(
+            row.financialYear
+          ),
+
+        routeMode:
+          row.routeMode,
+
+        routeStatus:
+          row.routeStatus,
+
+        isCurrent:
+          row.locationId ===
+            context.locationId
+      };
+    }
+  );
+}
 
 
 export async function resolveActiveYearRoute(
@@ -37,17 +239,26 @@ export async function resolveActiveYearRoute(
     )
   ) {
     throw new AppError({
-      status: 400,
-      code: "INVALID_OPERATION_DATE",
+      status:
+        400,
+
+      code:
+        "INVALID_OPERATION_DATE",
+
       userMessage:
         "Некоректна дата операції."
     });
   }
 
+
   const financialYear =
     Number(
-      operationDate.slice(0, 4)
+      operationDate.slice(
+        0,
+        4
+      )
     );
+
 
   if (
     !Number.isInteger(
@@ -55,87 +266,151 @@ export async function resolveActiveYearRoute(
     )
   ) {
     throw new AppError({
-      status: 400,
-      code: "INVALID_FINANCIAL_YEAR",
+      status:
+        400,
+
+      code:
+        "INVALID_FINANCIAL_YEAR",
+
       userMessage:
         "Некоректний обліковий рік."
     });
   }
 
-  const sql = db();
+
+  const sql =
+    db();
+
 
   /*
    * Важливо:
    *
    * projectId і locationId
-   * беруться ВИКЛЮЧНО із session context.
+   * беруться ВИКЛЮЧНО
+   * із session context.
    *
-   * spreadsheetId браузер не передає.
+   * spreadsheetId браузер
+   * не передає.
    */
 
-  const rows = await sql`
-    SELECT
-      yr.project_id AS "projectId",
+  const rows =
+    await sql`
+      SELECT
+        yr.project_id AS
+          "projectId",
 
-      yr.location_id AS "locationId",
+        yr.location_id AS
+          "locationId",
 
-      yr.financial_year AS
-        "financialYear",
+        yr.financial_year AS
+          "financialYear",
 
-      yr.spreadsheet_id AS
-        "spreadsheetId",
+        yr.spreadsheet_id AS
+          "spreadsheetId",
 
-      yr.schema_version AS
-        "schemaVersion",
+        yr.schema_version AS
+          "schemaVersion",
 
-      yr.status AS "status"
+        yr.status AS
+          "status",
 
-    FROM year_registry yr
+        yr.route_mode AS
+          "routeMode",
 
-    INNER JOIN projects p
-      ON p.project_id =
-         yr.project_id
+        yr.apps_script_web_app_url AS
+          "appsScriptWebAppUrl"
 
-    WHERE
-      yr.project_id =
-        ${context.projectId}
+      FROM year_registry yr
 
-      AND yr.location_id =
-        ${context.locationId}
+      INNER JOIN projects p
+        ON p.project_id =
+           yr.project_id
 
-      AND yr.financial_year =
-        ${financialYear}
+      WHERE
+        yr.project_id =
+          ${context.projectId}
 
-      AND p.active_year =
-        ${financialYear}
+        AND yr.location_id =
+          ${context.locationId}
 
-      AND p.status = 'ACTIVE'
+        AND yr.financial_year =
+          ${financialYear}
 
-      AND yr.status = 'ACTIVE'
+        AND p.active_year =
+          ${financialYear}
 
-    LIMIT 1
-  `;
+        AND p.status =
+          'ACTIVE'
+
+        AND (
+          (
+            yr.route_mode =
+              'PRODUCTION'
+
+            AND yr.status =
+              'ACTIVE'
+          )
+
+          OR
+
+          (
+            yr.route_mode =
+              'TEST'
+
+            AND yr.status IN (
+              'READY',
+              'ACTIVE'
+            )
+          )
+        )
+
+      LIMIT 1
+    `;
+
 
   const row =
-    rows[0] as
+    rows[0] as unknown as
       | {
           projectId: string;
+
           locationId: string;
+
           financialYear: number;
+
           spreadsheetId: string;
+
           schemaVersion: string;
-          status: "ACTIVE";
+
+          status: string;
+
+          routeMode:
+            YearRouteMode;
+
+          appsScriptWebAppUrl:
+            string | null;
         }
       | undefined;
 
-  if (!row) {
+
+  if (
+    !row ||
+    !isUsableRoute(
+      row.routeMode,
+      row.status
+    )
+  ) {
     throw new AppError({
-      status: 409,
-      code: "YEAR_NOT_ACTIVE",
+      status:
+        409,
+
+      code:
+        "YEAR_NOT_ACTIVE",
+
       userMessage:
-        "Для цієї дати немає активного облікового року."
+        "Для цієї дати немає доступного облікового маршруту."
     });
   }
+
 
   return {
     projectId:
@@ -156,6 +431,15 @@ export async function resolveActiveYearRoute(
       row.schemaVersion,
 
     status:
-      "ACTIVE"
+      row.status,
+
+    routeMode:
+      row.routeMode,
+
+    appsScriptWebAppUrl:
+      row
+        .appsScriptWebAppUrl
+        ?.trim() ||
+      null
   };
 }

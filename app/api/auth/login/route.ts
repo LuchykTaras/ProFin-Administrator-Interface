@@ -163,11 +163,19 @@ export async function POST(
           AND ul.project_id =
              u.project_id
 
-        INNER JOIN locations l
+               INNER JOIN locations l
           ON l.project_id =
              ul.project_id
           AND l.location_id =
              ul.location_id
+
+        INNER JOIN year_registry yr
+          ON yr.project_id =
+             ul.project_id
+          AND yr.location_id =
+             ul.location_id
+          AND yr.financial_year =
+             p.active_year
 
         WHERE
           lower(u.email) =
@@ -182,10 +190,46 @@ export async function POST(
           AND p.status =
             'ACTIVE'
 
-          AND l.status =
+                    AND l.status =
             'ACTIVE'
 
+          AND (
+            (
+              yr.route_mode =
+                'PRODUCTION'
+
+              AND yr.status =
+                'ACTIVE'
+            )
+
+            OR
+
+            (
+              yr.route_mode =
+                'TEST'
+
+              AND yr.status IN (
+                'READY',
+                'ACTIVE'
+              )
+            )
+          )
+
         ORDER BY
+          CASE
+            WHEN yr.route_mode =
+              'PRODUCTION'
+            THEN 0
+            ELSE 1
+          END,
+
+          CASE
+            WHEN ul.location_id =
+              'main'
+            THEN 0
+            ELSE 1
+          END,
+
           ul.location_id
 
         LIMIT 1

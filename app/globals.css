@@ -2799,3 +2799,363 @@ td {
 }
 }
 
+/* ============================================
+ * PATCH 50.11
+ * BRANCH / ROUTE SWITCHER
+ * ============================================ */
+
+
+/* --------------------------------------------
+ * Branch selector shell
+ * -------------------------------------------- */
+
+.branch-selector {
+  position: relative;
+
+  width: auto;
+  min-width: 235px;
+
+  justify-content: flex-start;
+
+  gap: 8px;
+
+  padding:
+    0
+    10px;
+
+  cursor: default;
+
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+
+.branch-selector:hover {
+  border-color:
+    #cbd9d4;
+
+  box-shadow:
+    0 4px 14px
+    rgba(20, 69, 54, 0.06);
+}
+
+
+.branch-selector > svg {
+  flex:
+    0 0 auto;
+
+  color:
+    #40574f;
+}
+
+
+.branch-selector-label {
+  flex:
+    0 0 auto;
+
+  color:
+    #4c5d57;
+
+  font-size:
+    13px;
+
+  font-weight:
+    650;
+
+  white-space:
+    nowrap;
+}
+
+
+/* --------------------------------------------
+ * Native select
+ * -------------------------------------------- */
+
+.branch-selector select {
+  flex:
+    1 1 auto;
+
+  min-width:
+    0;
+
+  height:
+    34px;
+
+  padding:
+    0
+    28px
+    0
+    6px;
+
+  border:
+    0;
+
+  outline:
+    0;
+
+  background:
+    transparent;
+
+  color:
+    #14231e;
+
+  font-size:
+    13px;
+
+  font-weight:
+    700;
+
+  cursor:
+    pointer;
+}
+
+
+.branch-selector select:focus {
+  outline:
+    0;
+}
+
+
+.branch-selector:focus-within {
+  border-color:
+    #78c8aa;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(18, 148, 111, 0.10);
+}
+
+
+.branch-selector select:disabled {
+  cursor:
+    default;
+
+  opacity:
+    0.72;
+}
+
+
+/* --------------------------------------------
+ * TEST route
+ * -------------------------------------------- */
+
+.branch-selector.selector-test {
+  border-color:
+    #e5c86c;
+
+  background:
+    #fff9e8;
+}
+
+
+.branch-selector.selector-test > svg {
+  color:
+    #a56b00;
+}
+
+
+.branch-selector.selector-test select {
+  color:
+    #825700;
+}
+
+
+.route-mode-badge {
+  flex:
+    0 0 auto;
+
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  min-height:
+    22px;
+
+  padding:
+    0
+    7px;
+
+  border:
+    1px solid
+    #e7c55c;
+
+  border-radius:
+    999px;
+
+  background:
+    #fff1bd;
+
+  color:
+    #805500;
+
+  font-size:
+    9px;
+
+  font-weight:
+    850;
+
+  line-height:
+    1;
+
+  letter-spacing:
+    0.06em;
+}
+
+/* --------------------------------------------
+ * Switch error
+ * -------------------------------------------- */
+
+.route-switch-error {
+  width:
+    calc(100% - 12px);
+
+  min-height:
+    42px;
+
+  margin:
+    0
+    6px
+    12px;
+
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  gap:
+    9px;
+
+  padding:
+    10px
+    13px;
+
+  border:
+    1px solid
+    #f0caca;
+
+  border-radius:
+    11px;
+
+  background:
+    #fff5f5;
+
+  color:
+    #ad3434;
+
+  font-size:
+    12px;
+
+  font-weight:
+    650;
+}
+
+
+.route-switch-error svg {
+  flex:
+    0 0 auto;
+}
+
+
+/* --------------------------------------------
+ * Responsive
+ *
+ * Важливо:
+ * старий CSS на <=900px робить
+ * усі .selector шириною 42px.
+ *
+ * Цим правилом branch selector
+ * навмисно повертаємо нормальну ширину.
+ * -------------------------------------------- */
+
+@media (max-width: 900px) {
+
+  .topbar-controls .branch-selector {
+    width:
+      auto;
+
+    min-width:
+      190px;
+
+    padding:
+      0
+      9px;
+  }
+
+
+  .topbar-controls
+  .branch-selector
+  .branch-selector-label {
+    display:
+      none;
+  }
+
+
+  .topbar-controls
+  .branch-selector
+  .route-mode-badge {
+    display:
+      inline-flex;
+  }
+
+
+  .branch-selector select {
+    width:
+      auto;
+
+    min-width:
+      110px;
+
+    max-width:
+      150px;
+  }
+}
+
+
+@media (max-width: 650px) {
+
+  .topbar-controls
+  .branch-selector {
+    min-width:
+      155px;
+
+    max-width:
+      190px;
+  }
+
+
+  .branch-selector select {
+    min-width:
+      0;
+
+    max-width:
+      130px;
+
+    font-size:
+      12px;
+  }
+
+
+  .route-mode-badge {
+    display:
+      none !important;
+  }
+
+
+  .route-switch-error {
+    width:
+      100%;
+
+    margin:
+      0
+      0
+      10px;
+  }
+}

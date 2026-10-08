@@ -3,12 +3,39 @@ export type InterfaceServiceStatus =
   | "NOT_CONNECTED"
   | "ERROR";
 
+export type InterfaceRouteMode =
+  | "PRODUCTION"
+  | "TEST";
+
+
+export type InterfaceRouteStatus =
+  | "ACTIVE"
+  | "READY";
+
+
+export type InterfaceLocationOption = {
+  locationId: string;
+
+  locationName: string;
+
+  financialYear: number;
+
+  routeMode:
+    InterfaceRouteMode;
+
+  routeStatus:
+    InterfaceRouteStatus;
+
+  isCurrent: boolean;
+};
 
 export type InterfaceBootstrapData = {
   context: {
     userId: string;
 
     displayName: string;
+
+
 
     role:
       | "CASHIER"
@@ -29,6 +56,9 @@ export type InterfaceBootstrapData = {
 
     sessionExpiresAt: string;
   };
+
+    availableLocations:
+    InterfaceLocationOption[];
 
   permissions: {
     operationCreate: boolean;
@@ -70,4 +100,18 @@ export type ApiEnvelope<T> = {
     T | null;
 
   retryable: boolean;
+};
+
+export type SwitchLocationResult = {
+  locationId: string;
+
+  locationName: string;
+
+  financialYear: number;
+
+  routeMode:
+    InterfaceRouteMode;
+
+  routeStatus:
+    InterfaceRouteStatus;
 };

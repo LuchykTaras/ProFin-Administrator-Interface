@@ -57,7 +57,8 @@ import {
 } from "@/lib/client/auth-api";
 
 import {
-  getInterfaceBootstrap
+  getInterfaceBootstrap,
+  switchInterfaceLocation
 } from "@/lib/client/interface-api";
 
 import {
@@ -702,12 +703,30 @@ const [
     );
 
 
-  const [
+    const [
     loggingOut,
     setLoggingOut
   ] =
     useState(
       false
+    );
+
+
+  const [
+    switchingLocation,
+    setSwitchingLocation
+  ] =
+    useState(
+      false
+    );
+
+
+  const [
+    locationSwitchError,
+    setLocationSwitchError
+  ] =
+    useState(
+      ""
     );
 
 
@@ -970,26 +989,59 @@ const [
             "OK"
           );
 
-        } catch (
-          loadError
+              } catch (
+        loadError
+      ) {
+        if (
+          controller
+            .signal
+            .aborted
         ) {
-          if (
-            controller
-              .signal
-              .aborted
-          ) {
-            return;
-          }
+          return;
+        }
 
 
-          console.error(
-            loadError
+        const message =
+          getApiErrorMessage(
+            loadError,
+
+            "Не вдалося отримати доступні типи операцій."
           );
 
 
-          setOperationTypes(
-            []
-          );
+        /*
+         * PATCH 50.12
+         *
+         * Помилка domain adapter є
+         * очікуваною runtime-помилкою.
+         *
+         * Не передаємо сам Error object
+         * у console.error(), тому що
+         * Next.js dev overlay відкриває
+         * fullscreen error screen.
+         *
+         * Інтерфейс уже має власний
+         * error state нижче.
+         */
+        console.warn(
+          "[DOMAIN_ADAPTER_ERROR]",
+          message
+        );
+
+
+        setOperationTypes(
+          []
+        );
+
+
+        setDomainAdapterStatus(
+          "ERROR"
+        );
+
+
+        setOperationTypesError(
+          message
+        );
 
 
           setDomainAdapterStatus(
@@ -1068,8 +1120,78 @@ const [
           "Не вдалося завершити сесію."
         )
       );
-    } finally {
+        } finally {
       setLoggingOut(
+        false
+      );
+    }
+  }
+
+
+  async function switchLocation(
+    locationId: string
+  ) {
+    if (
+      switchingLocation ||
+      locationId ===
+        bootstrap?.context
+          .locationId
+    ) {
+      return;
+    }
+
+
+    setSwitchingLocation(
+      true
+    );
+
+
+    setLocationSwitchError(
+      ""
+    );
+
+
+    try {
+      await switchInterfaceLocation(
+        locationId
+      );
+
+
+      /*
+       * Повний reload тут навмисний.
+       *
+       * Після зміни session.location_id
+       * потрібно заново отримати:
+       *
+       * - bootstrap;
+       * - schema;
+       * - journal;
+       * - birthdays;
+       * - permissions/context;
+       * - domain adapter state.
+       *
+       * Нічого від попередньої
+       * філії не залишаємо у React state.
+       */
+      window.location.reload();
+
+    } catch (
+      switchError
+    ) {
+      console.error(
+        switchError
+      );
+
+
+      setLocationSwitchError(
+        getApiErrorMessage(
+          switchError,
+          "Не вдалося перемкнути філію."
+        )
+      );
+
+
+      setSwitchingLocation(
         false
       );
     }
@@ -1276,8 +1398,19 @@ const [
   }
 
 
-  const context =
+    const context =
     bootstrap.context;
+
+
+  const currentRoute =
+    bootstrap
+      .availableLocations
+      .find(
+        location =>
+          location.locationId ===
+            context.locationId
+      ) ??
+    null;
 
 
   /*
@@ -1333,8 +1466,16 @@ const [
       "OK";
 
 
-  const domainUnavailableText =
-    "Очікує domain adapter";
+    const domainUnavailableText =
+    operationTypesError
+      ? (
+          currentRoute
+            ?.routeMode ===
+            "TEST"
+            ? "TEST adapter недоступний"
+            : "Domain adapter недоступний"
+        )
+      : "Очікує domain adapter";
 
 
   return (
@@ -1507,22 +1648,99 @@ const [
             className=
               "topbar-controls"
           >
-            <div
-              className=
-                "selector selector-locked"
+                        <label
+              className={
+                currentRoute
+                  ?.routeMode ===
+                    "TEST"
+                  ? "selector branch-selector selector-test"
+                  : "selector branch-selector"
+              }
+              title=
+                "Активна філія"
             >
               <Building2
                 size={17}
               />
 
-              <span>
-                Філія:{" "}
-                {
-                  context
-                    .locationName
-                }
+
+              <span
+                className=
+                  "branch-selector-label"
+              >
+                Філія:
               </span>
-            </div>
+
+
+              <select
+                aria-label=
+                  "Активна філія"
+
+                value={
+                  context
+                    .locationId
+                }
+
+                disabled={
+                  switchingLocation ||
+                  bootstrap
+                    .availableLocations
+                    .length <= 1
+                }
+
+                onChange={
+                  event => {
+                    void switchLocation(
+                      event.target.value
+                    );
+                  }
+                }
+              >
+                {
+                  bootstrap
+                    .availableLocations
+                    .map(
+                      location => (
+                        <option
+                          key={
+                            location.locationId
+                          }
+
+                          value={
+                            location.locationId
+                          }
+                        >
+                          {
+                            location.locationName
+                          }
+
+                          {
+                            location.routeMode ===
+                              "TEST"
+                              ? " [TEST]"
+                              : ""
+                          }
+                        </option>
+                      )
+                    )
+                }
+              </select>
+
+
+                            {
+                currentRoute
+                  ?.routeMode ===
+                    "TEST" &&
+                (
+                  <span
+                    className=
+                      "route-mode-badge"
+                  >
+                    TEST
+                  </span>
+                )
+              }
+            </label>
 
 
             <div
@@ -1586,8 +1804,32 @@ const [
                 </small>
               </span>
             </button>
-          </div>
+                    </div>
         </header>
+
+
+        {
+          locationSwitchError &&
+          (
+            <div
+              className=
+                "route-switch-error"
+
+              role=
+                "alert"
+            >
+              <AlertTriangle
+                size={17}
+              />
+
+              <span>
+                {
+                  locationSwitchError
+                }
+              </span>
+            </div>
+          )
+        }
 
 
         {
