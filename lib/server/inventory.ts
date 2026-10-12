@@ -335,11 +335,9 @@ function parseInventoryItem(
 
     locationId,
 
-    locationName:
-      requireString(
-        value.locationName,
-        "locationName"
-      )
+    // Canonical name is resolved from the authorized session.
+  locationName:
+  context.locationName
   };
 }
 
@@ -486,9 +484,9 @@ function parseInventoryResult(
     locationId:
       context.locationId,
 
-    locationName:
-      value.locationName.trim() ||
-      context.locationName,
+// Do not display untrusted labels supplied by the adapter.
+locationName:
+  context.locationName,
 
     /*
      * Не довіряємо total
