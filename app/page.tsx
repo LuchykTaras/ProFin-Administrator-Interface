@@ -6,6 +6,7 @@ import Image
 import {
   Activity,
   AlertTriangle,
+  ArrowLeftRight,
   Bell,
   Boxes,
   Building2,
@@ -45,8 +46,24 @@ import {
 } from "@/components/operation-form-modal";
 
 import {
-  ClientBirthdays
-} from "@/components/client-birthdays";
+  ClientBirthdaysTopbar
+} from "@/components/client-birthdays-topbar";
+
+import {
+  CancelOperationModal
+} from "@/components/cancel-operation-modal";
+
+import {
+  ClientsPage
+} from "@/components/clients/clients-page";
+
+import {
+  Inventory
+} from "@/components/inventory/inventory";
+
+import {
+  TransfersPage
+} from "@/components/transfers/transfers-page";
 
 import {
   getApiErrorMessage
@@ -86,6 +103,7 @@ type NavKey =
   | "cash"
   | "journal"
   | "inventory"
+  | "transfers"
   | "shift-close"
   | "clients"
   | "account"
@@ -143,6 +161,17 @@ const navItems: Array<{
     icon:
       Boxes
   },
+
+  {
+  key:
+    "transfers",
+
+  label:
+    "Переміщення",
+
+  icon:
+    ArrowLeftRight
+},
 
   {
     key:
@@ -731,12 +760,21 @@ const [
 
 
   const [
-    cancellingOperation,
-    setCancellingOperation
-  ] =
-    useState(
-      false
-    );
+  cancelModalOpen,
+  setCancelModalOpen
+] =
+  useState(
+    false
+  );
+
+
+const [
+  cancellingOperation,
+  setCancellingOperation
+] =
+  useState(
+    false
+  );
 
 
   const [
@@ -989,74 +1027,47 @@ const [
             "OK"
           );
 
-              } catch (
-        loadError
-      ) {
-        if (
-          controller
-            .signal
-            .aborted
-        ) {
-          return;
-        }
+      } catch (
+  loadError
+) {
+  if (
+    controller
+      .signal
+      .aborted
+  ) {
+    return;
+  }
 
 
-        const message =
-          getApiErrorMessage(
-            loadError,
+  const message =
+    getApiErrorMessage(
+      loadError,
 
-            "Не вдалося отримати доступні типи операцій."
-          );
-
-
-        /*
-         * PATCH 50.12
-         *
-         * Помилка domain adapter є
-         * очікуваною runtime-помилкою.
-         *
-         * Не передаємо сам Error object
-         * у console.error(), тому що
-         * Next.js dev overlay відкриває
-         * fullscreen error screen.
-         *
-         * Інтерфейс уже має власний
-         * error state нижче.
-         */
-        console.warn(
-          "[DOMAIN_ADAPTER_ERROR]",
-          message
-        );
+      "Не вдалося отримати доступні типи операцій."
+    );
 
 
-        setOperationTypes(
-          []
-        );
+  console.warn(
+    "[DOMAIN_ADAPTER_ERROR]",
+    message
+  );
 
 
-        setDomainAdapterStatus(
-          "ERROR"
-        );
+  setOperationTypes(
+    []
+  );
 
 
-        setOperationTypesError(
-          message
-        );
+  setDomainAdapterStatus(
+    "ERROR"
+  );
 
 
-          setDomainAdapterStatus(
-            "ERROR"
-          );
+  setOperationTypesError(
+    message
+  );
 
-
-          setOperationTypesError(
-            getApiErrorMessage(
-              loadError,
-
-              "Не вдалося отримати доступні типи операцій."
-            )
-          );
-        } finally {
+} finally {
           if (
             !controller
               .signal
@@ -1198,129 +1209,106 @@ const [
   }
 
 
-  async function requestOperationCancellation() {
-    if (
-      cancellingOperation
-    ) {
-      return;
-    }
+  async function requestOperationCancellation(
+  operationId: string
+) {
+  if (
+    cancellingOperation
+  ) {
+    return;
+  }
 
 
+  const normalizedOperationId =
+    operationId.trim();
+
+
+  setCancelOperationError(
+    ""
+  );
+
+
+  setCancelOperationMessage(
+    ""
+  );
+
+
+  if (
+    !normalizedOperationId
+  ) {
     setCancelOperationError(
-      ""
+      "Вкажіть точний ID операції."
     );
+
+    return;
+  }
+
+
+  setCancellingOperation(
+    true
+  );
+
+
+  try {
+    const response =
+      await cancelOperation({
+        input: {
+          operationId:
+            normalizedOperationId
+        },
+
+        idempotencyKey:
+          `profin-web-cancel-${normalizedOperationId}`
+      });
+
+
+    const warnings =
+      response
+        .result
+        .warnings
+        ?.filter(
+          warning =>
+            Boolean(
+              warning?.trim()
+            )
+        ) ??
+      [];
+
 
     setCancelOperationMessage(
-      ""
-    );
+      [
+        `Операцію ${response.result.operationId} скасовано.`,
 
+        response.idempotencyReplayed
+          ? "Повторний запит оброблено без дубля."
+          : "",
 
-    const requestedOperationId =
-      window.prompt(
-        "Вкажіть точний ID проведеної операції, яку потрібно скасувати."
-      );
-
-
-    if (
-      requestedOperationId ===
-        null
-    ) {
-      return;
-    }
-
-
-    const operationId =
-      requestedOperationId.trim();
-
-
-    if (
-      !operationId
-    ) {
-      setCancelOperationError(
-        "Вкажіть точний ID операції."
-      );
-
-      return;
-    }
-
-
-    const confirmed =
-      window.confirm(
-        `Скасувати операцію ${operationId}? Проведений запис не видаляється фізично: доменне ядро застосує чинну політику скасування та залежностей.`
-      );
-
-
-    if (
-      !confirmed
-    ) {
-      return;
-    }
-
-
-    setCancellingOperation(
-      true
-    );
-
-
-    try {
-      const response =
-        await cancelOperation({
-          input: {
-            operationId
-          },
-
-          /*
-           * Один стабільний key
-           * для одного operationId.
-           * Повторний submit не має
-           * створювати друге скасування.
-           */
-          idempotencyKey:
-            `profin-web-cancel-${operationId}`
-        });
-
-
-      const warnings =
-        response
-          .result
-          .warnings
-          ?.filter(
-            warning =>
-              Boolean(
-                warning?.trim()
-              )
-          ) ??
-        [];
-
-
-      setCancelOperationMessage(
-        [
-          `Операцію ${response.result.operationId} скасовано.`,
-
-          response.idempotencyReplayed
-            ? "Повторний запит оброблено без дубля."
-            : "",
-
-          ...warnings
-        ]
-          .filter(Boolean)
-          .join(" ")
-      );
-    } catch (
-      cancelError
-    ) {
-      setCancelOperationError(
-        getApiErrorMessage(
-          cancelError,
-          "Не вдалося скасувати операцію."
+        ...warnings
+      ]
+        .filter(
+          Boolean
         )
-      );
-    } finally {
-      setCancellingOperation(
-        false
-      );
-    }
+        .join(
+          " "
+        )
+    );
+
+  } catch (
+    cancelError
+  ) {
+    setCancelOperationError(
+      getApiErrorMessage(
+        cancelError,
+        "Не вдалося скасувати операцію."
+      )
+    );
+
+  } finally {
+    setCancellingOperation(
+      false
+    );
   }
+}
 
 
 
@@ -1744,34 +1732,41 @@ const [
 
 
             <div
-              className=
-                "selector selector-locked"
-            >
-              <CalendarDays
-                size={17}
-              />
+  className=
+    "selector selector-locked"
+>
+  <CalendarDays
+    size={17}
+  />
 
-              <span>
-                {
-                  currentDate
-                }
-              </span>
-            </div>
+  <span>
+    {
+      currentDate
+    }
+  </span>
+</div>
 
 
-            <button
-              type="button"
+<ClientBirthdaysTopbar
+  refreshKey={
+    birthdayRefreshKey
+  }
+/>
 
-              className=
-                "bell"
 
-              aria-label=
-                "Повідомлення"
-            >
-              <Bell
-                size={20}
-              />
-            </button>
+<button
+  type="button"
+
+  className=
+    "bell"
+
+  aria-label=
+    "Повідомлення"
+>
+  <Bell
+    size={20}
+  />
+</button>
 
 
             <button
@@ -2181,121 +2176,71 @@ const [
 
 
                       <div
-                        className=
-                          "cash-cancel-action"
+  className=
+    "cash-cancel-action"
+
+  style={{
+    width:
+      "min(280px, 100%)",
+
+    marginTop:
+      14
+  }}
+>
+  <QuickAction
+    icon={
+      RotateCcw
+    }
+
+    title={
+      cancellingOperation
+        ? "Скасування…"
+        : "Скасувати операцію"
+    }
+
+    subtitle={
+      bootstrap
+        .permissions
+        .cancellationRequest
+        ? (
+            domainReady
+              ? "Скасувати проведену операцію за ID"
+              : "Очікує domain adapter"
+          )
+        : "Недостатньо прав"
+    }
+
+    tone=
+      "red"
+
+    disabled={
+      !bootstrap
+        .permissions
+        .cancellationRequest ||
+      !domainReady ||
+      cancellingOperation
+    }
+
+    onClick={
+      () => {
+        setCancelOperationError(
+          ""
+        );
 
 
-
-                        style={{
-                          width:
-                            "min(280px, 100%)",
-
+        setCancelOperationMessage(
+          ""
+        );
 
 
-                          marginTop:
-                            14
-                        }}
-                      >
-                        <QuickAction
-                          icon={
-                            RotateCcw
-                          }
-
-                          title={
-                            cancellingOperation
-                              ? "Скасування…"
-                              : "Скасувати операцію"
-                          }
-
-                          subtitle={
-                            bootstrap
-                              .permissions
-                              .cancellationRequest
-                              ? (
-                                  domainReady
-                                    ? "Скасувати проведену операцію за ID"
-                                    : "Очікує domain adapter"
-                                )
-                              : "Недостатньо прав"
-                          }
-
-                          tone=
-                            "red"
-
-                          disabled={
-                            !bootstrap
-                              .permissions
-                              .cancellationRequest ||
-                            !domainReady ||
-                            cancellingOperation
-                          }
-
-                          onClick={
-                            () => {
-                              void requestOperationCancellation();
-                            }
-                          }
-                        />
-
-
-                        {
-                          cancelOperationMessage &&
-                          (
-                            <div
-                              role=
-                                "status"
-
-                              style={{
-                                marginTop:
-                                  8,
-
-                                fontSize:
-                                  12,
-
-                                lineHeight:
-                                  1.4,
-
-                                color:
-                                  "var(--green-700)"
-                              }}
-                            >
-                              {
-                                cancelOperationMessage
-                              }
-                            </div>
-                          )
-                        }
-
-
-                        {
-                          cancelOperationError &&
-                          (
-                            <div
-                              role=
-                                "alert"
-
-                              style={{
-                                marginTop:
-                                  8,
-
-                                fontSize:
-                                  12,
-
-                                lineHeight:
-                                  1.4,
-
-                                color:
-                                  "var(--red)"
-                              }}
-                            >
-                              {
-                                cancelOperationError
-                              }
-                            </div>
-                          )
-                        }
-                      </div>
-                    </>
+        setCancelModalOpen(
+          true
+        );
+      }
+    }
+  />
+</div>
+</>
                   )
                 }
               </section>
@@ -2440,52 +2385,140 @@ const [
         }
 
 
-                <div
-          className=
-            "dashboard"
+          <div
+  className=
+    "dashboard"
 
-          hidden={
-            active !==
-              "journal"
-          }
+  hidden={
+    active !==
+      "journal"
+  }
 
-          aria-hidden={
-            active !==
-              "journal"
-          }
-        >
-          <ClientBirthdays
-            active={
-              active ===
-                "journal"
-            }
+  aria-hidden={
+    active !==
+      "journal"
+  }
+>
+  <OperationJournal
+    active={
+      active ===
+        "journal"
+    }
 
-            refreshKey={
-              birthdayRefreshKey
-            }
-          />
+    onAdapterReady={
+      markDomainAdapterReady
+    }
+  />
+</div>
 
 
-          <OperationJournal
-            active={
-              active ===
-                "journal"
-            }
+        <div
+  className=
+    "dashboard"
 
-            onAdapterReady={
-              markDomainAdapterReady
-            }
-          />
-        </div>
+  hidden={
+    active !==
+      "inventory"
+  }
 
-        {
-          active !==
-            "cash" &&
-          active !==
-            "access" &&
-          active !==
-            "journal" &&
-          (
+  aria-hidden={
+    active !==
+      "inventory"
+  }
+>
+  <Inventory
+    active={
+      active ===
+        "inventory"
+    }
+
+    onAdapterReady={
+      markDomainAdapterReady
+    }
+  />
+</div>
+
+
+<div
+  className=
+    "dashboard"
+
+  hidden={
+    active !==
+      "clients"
+  }
+
+  aria-hidden={
+    active !==
+      "clients"
+  }
+>
+  <ClientsPage
+    active={
+      active ===
+        "clients"
+    }
+
+    canCreateClient={
+      bootstrap
+        .permissions
+        .operationCreate &&
+      domainReady
+    }
+
+    onCreateClient={
+      () => {
+        /*
+         * UI-only:
+         * використовуємо вже існуючу
+         * OperationFormModal.
+         *
+         * Жодної нової server-команди
+         * тут не створюємо.
+         */
+        void prefetchOperationFormSchema({
+          operationType:
+            null,
+
+          category:
+            null,
+
+          article:
+            null
+        });
+
+
+        setSelectedOperationType(
+          null
+        );
+
+
+        setNewClientMode(
+          true
+        );
+
+
+        setOperationModalOpen(
+          true
+        );
+      }
+    }
+  />
+</div>
+
+
+{
+  active !==
+    "cash" &&
+  active !==
+    "access" &&
+  active !==
+    "journal" &&
+  active !==
+    "inventory" &&
+  active !==
+    "clients" &&
+  (
             <section
               className=
                 "placeholder-page card"
@@ -2494,34 +2527,20 @@ const [
                 className=
                   "placeholder-icon"
               >
-                {
-                  active ===
-                    "inventory"
-                    ? (
-                        <Boxes
-                          size={34}
-                        />
-                      )
-                    : active ===
-                        "shift-close"
-                      ? (
-                          <ClipboardCheck
-                            size={34}
-                          />
-                        )
-                      : active ===
-                          "clients"
-                        ? (
-                            <Users
-                              size={34}
-                            />
-                          )
-                        : (
-                            <UserRound
-                              size={34}
-                            />
-                          )
-                }
+  {
+  active ===
+    "shift-close"
+    ? (
+        <ClipboardCheck
+          size={34}
+        />
+      )
+    : (
+        <UserRound
+          size={34}
+        />
+      )
+}
               </div>
 
 
@@ -2545,53 +2564,22 @@ const [
 
 
               {
-                active ===
-                  "inventory" &&
-                (
-                  <p>
-                    Тут буде склад:
-                    пошук, переміщення,
-                    вхідні переміщення,
-                    приймання,
-                    повернення та
-                    дозволені
-                    коригування.
-                  </p>
-                )
-              }
+  active ===
+    "shift-close" &&
+  (
+    <p>
+      Тут буде сценарій
+      перевірки та
+      закриття робочої
+      зміни.
+    </p>
+  )
+}
 
 
               {
-                active ===
-                  "shift-close" &&
-                (
-                  <p>
-                    Тут буде сценарій
-                    перевірки та
-                    закриття робочої
-                    зміни.
-                  </p>
-                )
-              }
-
-
-              {
-                active ===
-                  "clients" &&
-                (
-                  <p>
-                    Тут буде база
-                    клієнтів: пошук,
-                    список та картка
-                    клієнта.
-                  </p>
-                )
-              }
-
-
-              {
-                active ===
-                  "account" &&
+              active ===
+              "account" &&
                 (
                   <div
                     className=
@@ -2812,32 +2800,74 @@ const [
             </StatusPill>
           </div>
         </footer>
+                <CancelOperationModal
+          open={
+            cancelModalOpen
+          }
+
+          submitting={
+            cancellingOperation
+          }
+
+          error={
+            cancelOperationError
+          }
+
+          successMessage={
+            cancelOperationMessage
+          }
+
+          onSubmit={
+            operationId => {
+              void requestOperationCancellation(
+                operationId
+              );
+            }
+          }
+
+          onClose={
+            () => {
+              if (
+                cancellingOperation
+              ) {
+                return;
+              }
 
 
-          <OperationFormModal
+              setCancelModalOpen(
+                false
+              );
+
+
+              setCancelOperationError(
+                ""
+              );
+
+
+              setCancelOperationMessage(
+                ""
+              );
+            }
+          }
+        />
+
+
+        <OperationFormModal
           open={
             operationModalOpen
           }
-
-
 
           domainReady={
             domainReady
           }
 
-
-
           initialOperationType={
             selectedOperationType
           }
 
-
-
           initialNewClient={
             newClientMode
           }
-
-
 
           onSuccess={
             result => {
@@ -2851,8 +2881,6 @@ const [
               }
             }
           }
-
-
 
           onClose={
             () => {
