@@ -721,15 +721,7 @@ function FieldControl({
           ariaLabel={field.label}
         />
       ) : <input
-        type={
-          field.kind ===
-            "number"
-            ? "number"
-            : field.kind ===
-                "date"
-              ? "date"
-              : "text"
-        }
+        type={field.kind === "number" ? "number" : "text"}
 
         value={
           value
