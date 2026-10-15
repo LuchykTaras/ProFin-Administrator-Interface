@@ -19,6 +19,7 @@ export type CreateTransferInput = {
   sourceLotId: string;
   quantity: number;
   operationDate: string;
+  expectedSourceBalance: number;
 };
 
 export type TransferRouteOption = {
@@ -92,7 +93,118 @@ export type CloseShiftResult = {
   warnings: string[];
 };
 
+
 export type IdempotentCommandResult<T> = {
   result: T;
   idempotencyReplayed: boolean;
+};
+
+
+// ============================================================
+// Transfer planning
+// ============================================================
+
+export type TransferPlanInput = Omit<
+  CreateTransferInput,
+  "expectedSourceBalance"
+>;
+
+export type TransferPlanResult = {
+  sourceLotId: string;
+
+  inventoryName: string;
+  inventoryType: string;
+
+  series: string | null;
+  expiryDate: string | null;
+
+  sourceBranch: string;
+  destinationBranch: string;
+
+  quantity: number;
+  sourceBalanceBefore: number;
+  sourceBalanceAfter: number;
+
+  operationDate: string;
+  warnings: string[];
+};
+
+
+// ============================================================
+// Incoming transfers
+// ============================================================
+
+export type IncomingTransferItem = {
+  routeId: string;
+  transferId: string;
+
+  sourceLotId: string;
+  receiverLotId: string;
+
+  inventoryName: string;
+  inventoryType: string;
+
+  series: string | null;
+  expiryDate: string | null;
+
+  quantity: number;
+
+  sourceBranch: string;
+  destinationBranch: string;
+
+  status: string;
+
+  canAccept: boolean;
+  canReturn: boolean;
+};
+
+export type TransferInboxResult = {
+  checkedAt: string;
+  items: IncomingTransferItem[];
+};
+
+
+// ============================================================
+// Outgoing transfers
+// ============================================================
+
+export type OutgoingTransferItem = {
+  routeId: string;
+  transferId: string;
+
+  sourceLotId: string;
+  receiverLotId: string;
+
+  inventoryName: string;
+  inventoryType: string;
+
+  series: string | null;
+  quantity: number;
+
+  sourceBranch: string;
+  destinationBranch: string;
+
+  status: string;
+  pairedVerified: boolean;
+};
+
+export type TransferOutboxResult = {
+  checkedAt: string;
+  items: OutgoingTransferItem[];
+};
+
+
+// ============================================================
+// Transfer returns
+// ============================================================
+
+export type ReturnTransferInput = {
+  routeId: string;
+  transferId: string;
+};
+
+export type ReturnTransferResult = {
+  transferId: string;
+  status: string;
+  warnings: string[];
 };

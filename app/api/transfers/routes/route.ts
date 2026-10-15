@@ -1,3 +1,7 @@
+import {
+  transferWritesEnabled
+} from "@/lib/server/transfer-write-policy";
+
 import type {
   TransferRouteOption
 } from "@/lib/contracts/operational-commands";
@@ -40,12 +44,18 @@ export async function GET(
         context
       );
 
+    const writeEnabled =
+      routes.length > 0 &&
+      await transferWritesEnabled(context);
+
     return apiOk<{
       routes: TransferRouteOption[];
+      writeEnabled: boolean;
     }>(
       requestId,
       {
-        routes
+        routes,
+        writeEnabled
       },
       "Дозволені маршрути переміщення отримано.",
       "TRANSFER_ROUTES"

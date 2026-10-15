@@ -2412,7 +2412,7 @@ const [
 </div>
 
 
-        <div
+  <div
   className=
     "dashboard"
 
@@ -2438,6 +2438,27 @@ const [
   />
 </div>
 
+<div
+  className=
+    "dashboard"
+
+  hidden={
+    active !==
+      "transfers"
+  }
+
+  aria-hidden={
+    active !==
+      "transfers"
+  }
+>
+  <TransfersPage
+  active={active === "transfers"}
+  contextKey={
+    `${context.projectId}:${context.locationId}:${context.activeYear}`
+  }
+/>
+</div>
 
 <div
   className=
@@ -2452,6 +2473,7 @@ const [
     active !==
       "clients"
   }
+
 >
   <ClientsPage
     active={
@@ -2503,9 +2525,8 @@ const [
         );
       }
     }
-  />
+    />
 </div>
-
 
 {
   active !==
@@ -2516,6 +2537,8 @@ const [
     "journal" &&
   active !==
     "inventory" &&
+  active !==
+    "transfers" &&
   active !==
     "clients" &&
   (

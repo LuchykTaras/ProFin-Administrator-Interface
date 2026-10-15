@@ -707,8 +707,50 @@ function normalizeAdapterResult(
     });
   }
 
+    if (process.env.NODE_ENV === "development") {
+    console.info("[JOURNAL_SOURCE_DIAG]", {
+      expected: JOURNAL_SOURCE_SHEET,
+
+      actual: value.sourceSheet ?? null,
+
+      fields: Object.keys(value),
+
+      nestedSource:
+        isRecord(value.result)
+          ? value.result.sourceSheet ?? null
+          : null,
+
+      dataSource:
+        isRecord(value.data)
+          ? value.data.sourceSheet ?? null
+          : null
+    });
+  }
+
+    console.info("[JOURNAL_SOURCE_DIAG]", {
+    expected: JOURNAL_SOURCE_SHEET,
+    actual: value.sourceSheet ?? null,
+    fields: Object.keys(value),
+    nestedSource:
+      isRecord(value.result)
+        ? value.result.sourceSheet ?? null
+        : null
+  });
+
+    const actualSource =
+    value.sourceSheet === undefined
+      ? value.source
+      : value.sourceSheet;
+
+  console.info("[JOURNAL_CONTRACT_57_6]", {
+    expectedSource: JOURNAL_SOURCE_SHEET,
+    actualSource,
+    monthKey: value.monthKey ?? null,
+    sourceFields: Object.keys(value)
+  });
+
   if (
-    value.sourceSheet !==
+    actualSource !==
       JOURNAL_SOURCE_SHEET
   ) {
     throw new AppError({
@@ -720,7 +762,7 @@ function normalizeAdapterResult(
         "Доменне ядро повернуло невідоме джерело журналу.",
       technicalMessage:
         `Expected ${JOURNAL_SOURCE_SHEET}, got ${String(
-          value.sourceSheet
+          actualSource
         )}.`,
       retryable:
         false

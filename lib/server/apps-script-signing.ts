@@ -18,16 +18,185 @@ import {
 } from "@/lib/server/errors";
 
 
+// PATCH 55.7.R4.3
+// Бабурка продовжує використовувати HMAC V1.
+
 const PROFIN_HMAC_CANONICAL_VERSION =
   "PROFIN-HMAC-V1";
 
 
-function getHmacSecret():
-string {
+// Альтернатива 2026 використовує HMAC V2.
+
+const PROFIN_HMAC_CANONICAL_VERSION_ALT =
+  "PROFIN-HMAC-V2";
+
+
+const PROFIN_ALT_2026_SPREADSHEET_ID =
+  "1Xq-byiSUVSOhNB30rDGrt9WecxI9unZEMXwxvwuhPM8";
+
+const PROFIN_BAB_2026_SPREADSHEET_ID =
+  "1EUffLqpIy-VOiGqIN85BaZ4dV62Sn6bz3PjzhiFrkDw";
+
+const PROFIN_BAB_TEST_SPREADSHEET_ID =
+  "1UZawoIWSgZwmFlmk4HmOcTD_Ir9fxWjwBjTCRc9M6ng";
+
+const PROFIN_ALT_TEST_SPREADSHEET_ID =
+  "1ppIrvrdzkBTg2_OEpv7kKhSZS0q3iLQesZzEVrfxfFY";
+
+type HmacProfile =
+  | "BAB_PRODUCTION"
+  | "ALT_PRODUCTION"
+  | "BAB_TEST"
+  | "ALT_TEST";
+
+const HMAC_ENV_PREFIX: Record<HmacProfile, string> = {
+  BAB_PRODUCTION: "APPS_SCRIPT",
+  ALT_PRODUCTION: "APPS_SCRIPT_ALT",
+  BAB_TEST: "APPS_SCRIPT_BAB_TEST",
+  ALT_TEST: "APPS_SCRIPT_ALT_TEST"
+};
+
+function resolveHmacProfile<TPayload>(
+  request: UnsignedAppsScriptAdapterRequest<TPayload>
+): HmacProfile {
+  const context = request.context;
+
+  const annualRoute = (
+    context as typeof context & {
+      annualRoute?: {
+        projectId?: string;
+        locationId?: string;
+        year?: number;
+        routeMode?: string;
+        spreadsheetId?: string;
+      } | null;
+    }
+  ).annualRoute;
+
+  const matchingRoute =
+    annualRoute?.projectId === context.projectId &&
+    annualRoute?.locationId === context.locationId &&
+    annualRoute?.year === context.activeYear;
+
+  const testRequested =
+    annualRoute?.routeMode === "TEST" ||
+    context.locationId.endsWith("-test");
+
+  if (testRequested) {
+    if (
+      !matchingRoute ||
+      context.projectId !== "demo-project" ||
+      context.activeYear !== 2026 ||
+      annualRoute?.routeMode !== "TEST"
+    ) {
+      throw new AppError({
+        status: 403,
+        code: "TEST_HMAC_ROUTE_FORBIDDEN",
+        userMessage: "Некоректний TEST-маршрут.",
+        retryable: false
+      });
+    }
+
+    if (
+      context.locationId === "baburka-test" &&
+      annualRoute.spreadsheetId ===
+        PROFIN_BAB_TEST_SPREADSHEET_ID
+    ) {
+      return "BAB_TEST";
+    }
+
+    if (
+      context.locationId === "alternatyva-test" &&
+      annualRoute.spreadsheetId ===
+        PROFIN_ALT_TEST_SPREADSHEET_ID
+    ) {
+      return "ALT_TEST";
+    }
+
+    throw new AppError({
+      status: 403,
+      code: "TEST_HMAC_SPREADSHEET_FORBIDDEN",
+      userMessage: "TEST-таблиця не відповідає філії.",
+      retryable: false
+    });
+  }
+
+  if (
+    !matchingRoute ||
+    annualRoute?.routeMode !== "PRODUCTION"
+  ) {
+    throw new AppError({
+      status: 403,
+      code: "HMAC_ANNUAL_ROUTE_INVALID",
+      userMessage: "Некоректний річний маршрут.",
+      retryable: false
+    });
+  }
+
+    if (
+    context.activeYear === 2026 &&
+    context.locationId === "alternatyva"
+  ) {
+    if (
+      context.projectId !== "demo-project" ||
+      annualRoute.spreadsheetId !==
+        PROFIN_ALT_2026_SPREADSHEET_ID
+    ) {
+      throw new AppError({
+        status: 403,
+        code: "ALT_PRODUCTION_ROUTE_MISMATCH",
+        userMessage: "Некоректна таблиця Альтернативи.",
+        retryable: false
+      });
+    }
+
+    return "ALT_PRODUCTION";
+  }
+
+  // PATCH 55.9.10.F
+  // Для 2026 року забороняємо невідомі
+  // production-філії та чужі таблиці.
+  if (context.activeYear === 2026) {
+    if (
+      context.projectId !== "demo-project" ||
+      context.locationId !== "main"
+    ) {
+      throw new AppError({
+        status: 403,
+        code: "UNKNOWN_PRODUCTION_HMAC_ROUTE",
+        userMessage: "Невідомий production-маршрут.",
+        retryable: false
+      });
+    }
+
+    if (
+      annualRoute.spreadsheetId !==
+      PROFIN_BAB_2026_SPREADSHEET_ID
+    ) {
+      throw new AppError({
+        status: 403,
+        code: "BAB_PRODUCTION_ROUTE_MISMATCH",
+        userMessage: "Некоректна таблиця Бабурки.",
+        retryable: false
+      });
+    }
+  }
+
+  // Зберігаємо попередню поведінку
+  // для інших років; вони потребують
+  // окремого аудиту маршрутизації.
+  return "BAB_PRODUCTION";
+}
+
+
+function getHmacSecret(
+  profile: HmacProfile
+): string {
+  const propertyName =
+    `${HMAC_ENV_PREFIX[profile]}_HMAC_SECRET`;
+
   const secret =
-    process.env
-      .APPS_SCRIPT_HMAC_SECRET
-      ?.trim();
+    process.env[propertyName]?.trim();
 
 
   if (!secret) {
@@ -42,7 +211,7 @@ string {
         "Не налаштовано захищений канал Apps Script.",
 
       technicalMessage:
-        "APPS_SCRIPT_HMAC_SECRET is missing."
+        `${propertyName} is missing.`
     });
   }
 
@@ -62,7 +231,7 @@ string {
         "Некоректна конфігурація захищеного каналу Apps Script.",
 
       technicalMessage:
-        "APPS_SCRIPT_HMAC_SECRET must contain at least 32 characters."
+  `${propertyName} must contain at least 32 characters.`
     });
   }
 
@@ -71,12 +240,15 @@ string {
 }
 
 
-function getHmacKeyId():
-string {
+function getHmacKeyId(
+  profile: HmacProfile
+): string {
+  const propertyName =
+    `${HMAC_ENV_PREFIX[profile]}_HMAC_KEY_ID`;
+
+
   const keyId =
-    process.env
-      .APPS_SCRIPT_HMAC_KEY_ID
-      ?.trim();
+    process.env[propertyName]?.trim();
 
 
   if (!keyId) {
@@ -91,7 +263,7 @@ string {
         "Не налаштовано ідентифікатор ключа Apps Script.",
 
       technicalMessage:
-        "APPS_SCRIPT_HMAC_KEY_ID is missing."
+        `${propertyName} is missing.`
     });
   }
 
@@ -267,14 +439,37 @@ export function buildAppsScriptCanonicalString<
     request.context;
 
 
-  const payloadCanonical =
+    const payloadCanonical =
     stableStringify(
       request.payload
     );
 
 
+  // PATCH 55.7.R4.3
+  // Отримуємо річний маршрут із серверного контексту.
+
+  const annualRoute = (
+    context as typeof context & {
+      annualRoute?: {
+        spreadsheetId?: string;
+      } | null;
+    }
+  ).annualRoute;
+
+
+  // V2 застосовується лише до Альтернативи 2026.
+
+    const profile =
+    resolveHmacProfile(request);
+
+  const isV2 =
+    profile !== "BAB_PRODUCTION";
+
+
   return [
-    PROFIN_HMAC_CANONICAL_VERSION,
+        isV2
+      ? PROFIN_HMAC_CANONICAL_VERSION_ALT
+      : PROFIN_HMAC_CANONICAL_VERSION,
 
     canonicalScalar(
       request.protocolVersion
@@ -324,9 +519,21 @@ export function buildAppsScriptCanonicalString<
       context.timezone
     ),
 
-    canonicalScalar(
+        canonicalScalar(
       context.locale
     ),
+
+    // PATCH 55.7.R4.3
+    // Підписуємо річний маршрут тільки у V2.
+    // Для V1 порядок і кількість полів не змінюються.
+
+        ...(isV2
+      ? [
+          stableStringify(
+            annualRoute ?? null
+          )
+        ]
+      : []),
 
     canonicalScalar(
       request.idempotencyKey
@@ -345,12 +552,18 @@ export function signAppsScriptRequest<
   request:
     UnsignedAppsScriptAdapterRequest<TPayload>
 ): AppsScriptAdapterAuth {
-  const secret =
-    getHmacSecret();
 
+  // PATCH 55.9.1.C3
+  // Визначаємо філію за серверним річним маршрутом.
+
+    const profile =
+    resolveHmacProfile(request);
+
+  const secret =
+    getHmacSecret(profile);
 
   const keyId =
-    getHmacKeyId();
+    getHmacKeyId(profile);
 
 
   const canonicalString =

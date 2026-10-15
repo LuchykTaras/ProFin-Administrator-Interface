@@ -92,7 +92,10 @@ type SignedAppsScriptAdapterContext =
 
 function getAppsScriptWebAppUrl(
   annualRoute:
-    AppsScriptAnnualRoute
+    AppsScriptAnnualRoute,
+
+  command:
+    AppsScriptAdapterCommand
 ): string {
   const routeUrl =
     annualRoute
@@ -101,40 +104,53 @@ function getAppsScriptWebAppUrl(
     null;
 
 
-  const fallbackUrl =
+    const fallbackUrl =
     process.env
       .APPS_SCRIPT_WEB_APP_URL
       ?.trim() ||
     null;
 
+  // PATCH 55.9.1.A
+  // ALT не використовує загальний URL Бабурки.
 
-  /*
-   * PATCH 50.
-   *
-   * TEST route НІКОЛИ
-   * не використовує production
-   * Apps Script deployment
-   * як fallback.
-   *
-   * PRODUCTION route:
-   * 1. використовує URL із registry,
-   *    якщо він заданий;
-   * 2. інакше використовує
-   *    APPS_SCRIPT_WEB_APP_URL.
-   *
-   * TEST route:
-   * використовує ТІЛЬКИ
-   * apps_script_web_app_url
-   * із year_registry.
-   */
+  const isAlt2026 =
+    annualRoute.year === 2026 &&
+    annualRoute.spreadsheetId ===
+      "1Xq-byiSUVSOhNB30rDGrt9WecxI9unZEMXwxvwuhPM8";
+
+  if (isAlt2026 && !routeUrl) {
+    throw new AppError({
+      status: 503,
+      code: "ALT_APPS_SCRIPT_WEB_APP_URL_MISSING",
+      userMessage:
+        "Для Альтернативи ще не підключено окремий Apps Script.",
+      technicalMessage:
+        "ALT 2026 requires year_registry.apps_script_web_app_url.",
+      retryable: false
+    });
+  }
+
+    // PATCH 56.9.3
+  // Local diagnostic override: ALT 2026,
+  // read-only commands, development only.
+  const diagnosticUrl =
+    process.env.NODE_ENV === "development" &&
+    isAlt2026 &&
+    annualRoute.routeMode === "PRODUCTION" &&
+    (
+      command === "getOperationFormSchemaWeb" ||
+      command === "getOperationJournal"
+    )
+      ? process.env.ALT_READ_DIAGNOSTIC_URL?.trim() || null
+      : null;
+
   const raw =
-    annualRoute.routeMode ===
-      "TEST"
-      ? routeUrl
-      : (
-          routeUrl ||
-          fallbackUrl
-        );
+    diagnosticUrl ||
+    (
+      annualRoute.routeMode === "TEST"
+        ? routeUrl
+        : routeUrl || fallbackUrl
+    );
 
 
   if (!raw) {
@@ -267,6 +283,7 @@ function commandRequiresIdempotency(
     "createOperationWeb",
     "createTransfer",
     "acceptTransfer",
+    "returnTransfer", // PATCH 55.9.1.B
     "cancelOperation",
     "requestCorrection",
     "closeShift"
@@ -466,9 +483,10 @@ export async function callAppsScriptAdapter<
    * Browser не може передати
    * Apps Script URL.
    */
-  const url =
+    const url =
     getAppsScriptWebAppUrl(
-      annualRoute
+      annualRoute,
+      params.command
     );
 
 

@@ -1,0 +1,655 @@
+
+/* ==========================================================
+   ProFin OS — TRF-101
+   Transfers Page
+   ========================================================== */
+
+/* Page layout */
+
+.page {
+  display: grid;
+  gap: 18px;
+  width: 100%;
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px;
+  background: #ffffff;
+  border: 1px solid #dce6e2;
+  border-radius: 16px;
+}
+
+.header h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+  color: #16352b;
+  font-size: 23px;
+  font-weight: 750;
+}
+
+.header h2 svg {
+  color: #087f65;
+}
+
+.header p {
+  margin: 0;
+  color: #71837c;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.eyebrow {
+  color: #087f65;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+
+/* ==========================================================
+   Buttons
+   ========================================================== */
+
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 9px 15px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease;
+}
+
+.primary {
+  color: #ffffff;
+  background: #087f65;
+  border: 1px solid #087f65;
+}
+
+.primary:hover:not(:disabled) {
+  background: #066b55;
+}
+
+.secondary {
+  color: #25473b;
+  background: #ffffff;
+  border: 1px solid #d9e5df;
+}
+
+.secondary:hover:not(:disabled) {
+  background: #eef8f3;
+}
+
+.primary:disabled,
+.secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.primary:focus-visible,
+.secondary:focus-visible,
+.tabs button:focus-visible {
+  outline: 2px solid #087f65;
+  outline-offset: 2px;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
+/* ==========================================================
+   Summary
+   ========================================================== */
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.summary > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+  padding: 18px;
+  background: #ffffff;
+  border: 1px solid #dce6e2;
+  border-radius: 14px;
+}
+
+.summary svg {
+  color: #087f65;
+}
+
+.summary strong {
+  color: #173e30;
+  font-size: 18px;
+  font-weight: 750;
+}
+
+.summary span {
+  color: #7a8a83;
+  font-size: 11px;
+}
+
+
+/* ==========================================================
+   System messages
+   ========================================================== */
+
+.note,
+.error,
+.success {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.note {
+  color: #8b641a;
+  background: #fff9e9;
+  border-color: #f0dfac;
+}
+
+.error {
+  color: #af3030;
+  background: #fff4f4;
+  border-color: #f1cccc;
+}
+
+.success {
+  color: #086749;
+  background: #edfaf2;
+  border-color: #bfe6cd;
+}
+
+.note svg,
+.error svg,
+.success svg {
+  flex-shrink: 0;
+}
+
+.error button {
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  padding: 2px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+
+/* ==========================================================
+   Navigation tabs
+   ========================================================== */
+
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  background: #ffffff;
+  border: 1px solid #dce6e2;
+  border-radius: 13px;
+}
+
+.tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 39px;
+  padding: 9px 16px;
+  color: #667d72;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.tabs button:hover {
+  background: #f0f8f3;
+}
+
+.tabs button.current {
+  color: #086b53;
+  background: #daf5e5;
+}
+
+.tabs button span {
+  padding: 2px 7px;
+  background: #edf3ef;
+  border-radius: 20px;
+  font-size: 10px;
+}
+
+
+/* ==========================================================
+   Search
+   ========================================================== */
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 15px;
+  background: #ffffff;
+  border: 1px solid #dce6e2;
+  border-radius: 11px;
+}
+
+.search svg {
+  flex-shrink: 0;
+  color: #8ca199;
+}
+
+.search input {
+  width: 100%;
+  min-height: 43px;
+  color: #243d33;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-size: 12px;
+}
+
+.search:focus-within {
+  border-color: #087f65;
+}
+
+
+/* ==========================================================
+   Transfer tables
+   ========================================================== */
+
+.tableScroll {
+  width: 100%;
+  overflow-x: auto;
+  background: #ffffff;
+  border: 1px solid #dce6e2;
+  border-radius: 13px;
+}
+
+.table {
+  width: 100%;
+  min-width: 870px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.table thead {
+  background: #f5f9f7;
+}
+
+.table th {
+  padding: 14px 13px;
+  color: #465f54;
+  font-size: 11px;
+  font-weight: 750;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid #e3ebe7;
+}
+
+.table td {
+  padding: 13px;
+  color: #355044;
+  vertical-align: middle;
+  border-bottom: 1px solid #edf1ee;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table tbody tr:hover {
+  background: #fbfdfb;
+}
+
+.table td strong {
+  display: block;
+  color: #16382b;
+  font-weight: 700;
+}
+
+.table td small {
+  display: block;
+  margin-top: 5px;
+  color: #87978e;
+  font-size: 10px;
+}
+
+.table td code {
+  display: inline-block;
+  max-width: 240px;
+  padding: 4px 6px;
+  overflow-wrap: anywhere;
+  color: #4a6758;
+  background: #f3f7f5;
+  border: 1px solid #e2eae5;
+  border-radius: 6px;
+  font-size: 10px;
+}
+
+.quantity {
+  color: #087f65 !important;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.rowActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.rowActions select {
+  min-height: 35px;
+  padding: 7px 10px;
+  color: #315346;
+  background: #ffffff;
+  border: 1px solid #dce6e2;
+  border-radius: 8px;
+  font-size: 11px;
+}
+
+.rowActions button {
+  white-space: nowrap;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 110px;
+  padding: 24px;
+  color: #82938a;
+  background: #fafcfb;
+  border: 1px solid #e0eae5;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 12px;
+}
+
+
+/* ==========================================================
+   Modal overlay and dialog
+   ========================================================== */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(12, 31, 23, 0.55);
+}
+
+.dialog {
+  width: min(100%, 610px);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px;
+  color: #29473a;
+  background: #ffffff;
+  border: 1px solid #dce6e2;
+  border-radius: 18px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.18);
+}
+
+.dialogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.dialogHeader h3 {
+  margin: 0;
+  color: #163b2b;
+  font-size: 20px;
+  font-weight: 750;
+}
+
+.dialogHeader button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  color: #697b71;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.dialogHeader button:hover {
+  background: #edf4ef;
+}
+
+
+/* ==========================================================
+   Transfer details
+   ========================================================== */
+
+.detail {
+  display: grid;
+  grid-template-columns: 145px minmax(0, 1fr);
+  gap: 12px 15px;
+  margin-bottom: 20px;
+  padding: 17px;
+  background: #f7faf8;
+  border: 1px solid #e4ece7;
+  border-radius: 12px;
+}
+
+.detail span {
+  color: #809087;
+  font-size: 11px;
+}
+
+.detail strong {
+  color: #213d30;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.detail code {
+  color: #0a7356;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+
+/* ==========================================================
+   Form controls
+   ========================================================== */
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 16px;
+  color: #344f41;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.label input,
+.label select {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  color: #213c2d;
+  background: #ffffff;
+  border: 1px solid #d4e2d9;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+.label input:focus,
+.label select:focus {
+  outline: 2px solid #a1d9bb;
+  border-color: #087f65;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+
+/* ==========================================================
+   Transfer preview
+   ========================================================== */
+
+.plan {
+  display: grid;
+  gap: 9px;
+  padding: 17px;
+  margin: 4px 0 20px;
+  color: #24543c;
+  background: #eaf8ef;
+  border: 1px solid #b9e3c6;
+  border-radius: 12px;
+}
+
+.plan strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #087348;
+  font-size: 13px;
+}
+
+.plan p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.plan small {
+  color: #527363;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+
+/* ==========================================================
+   Modal actions
+   ========================================================== */
+
+.buttons {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+
+/* ==========================================================
+   Responsive
+   ========================================================== */
+
+@media (max-width: 900px) {
+  .summary {
+    grid-template-columns: 1fr;
+  }
+
+  .header {
+    flex-wrap: wrap;
+  }
+
+  .tabs {
+    overflow-x: auto;
+  }
+
+  .tabs button {
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .page {
+    gap: 12px;
+  }
+
+  .header,
+  .dialog {
+    padding: 18px;
+  }
+
+  .header h2 {
+    font-size: 19px;
+  }
+
+  .fields {
+    grid-template-columns: 1fr;
+  }
+
+  .detail {
+    grid-template-columns: 105px minmax(0, 1fr);
+  }
+
+  .buttons {
+    flex-direction: column;
+  }
+
+  .buttons button {
+    width: 100%;
+  }
+
+  .overlay {
+    padding: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+
+  .primary,
+  .secondary {
+    transition: none;
+  }
+}

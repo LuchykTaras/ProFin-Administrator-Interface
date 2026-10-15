@@ -4,6 +4,10 @@ import type {
 } from "@/lib/contracts/operational-commands";
 
 import {
+  assertTransferWriteEnabled
+} from "@/lib/server/transfer-write-policy";
+
+import {
   apiFromError,
   apiOk,
   getRequestId
@@ -35,13 +39,13 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED_KEYS =
-  new Set([
-    "routeId",
-    "sourceLotId",
-    "quantity",
-    "operationDate"
-  ]);
+const ALLOWED_KEYS = new Set([
+  "routeId",
+  "sourceLotId",
+  "quantity",
+  "operationDate",
+  "expectedSourceBalance"
+]);
 
 type AdapterData = {
   idempotencyReplayed?: boolean;
@@ -65,6 +69,8 @@ export async function POST(
 
     const idempotencyKey =
       requireIdempotencyKey(request);
+
+      await assertTransferWriteEnabled(context);
 
     const body =
       await requireJsonObject(request);
@@ -96,38 +102,55 @@ export async function POST(
         "Кількість переміщення має бути більшою за нуль."
       );
 
-    const operationDate =
-      requireDateOnly(
-        body.operationDate
-      );
+    const operationDate = requireDateOnly(
+  body.operationDate
+);
 
-    const transferRoute =
-      await resolveTrustedTransferRoute(
-        context,
-        routeId,
-        "OUTGOING"
-      );
+const expectedSourceBalance = Number(
+  body.expectedSourceBalance
+);
+
+if (
+  !Number.isFinite(expectedSourceBalance) ||
+  expectedSourceBalance < quantity
+) {
+  throw new AppError({
+    status: 409,
+    code: "TRANSFER_PLAN_REQUIRED",
+    userMessage:
+      "Спочатку перевірте план переміщення."
+  });
+}
+
+const transferRoute =
+  await resolveTrustedTransferRoute(
+    context,
+    routeId,
+    "OUTGOING"
+  );
 
     const adapter =
-      await callAppsScriptAdapter<
-        {
-          sourceLotId: string;
-          quantity: number;
-          operationDate: string;
-          transferRoute: typeof transferRoute;
-        },
-        AdapterData
-      >({
+  await callAppsScriptAdapter<
+    {
+      sourceLotId: string;
+      quantity: number;
+      operationDate: string;
+      expectedSourceBalance: number;
+      transferRoute: typeof transferRoute;
+    },
+    AdapterData
+     >({
         requestId,
         command: "createTransfer",
         context,
         operationDate,
         idempotencyKey,
         payload: {
-          sourceLotId,
-          quantity,
-          operationDate,
-          transferRoute
+        sourceLotId,
+        quantity,
+        operationDate,
+        expectedSourceBalance,
+        transferRoute
         }
       });
 

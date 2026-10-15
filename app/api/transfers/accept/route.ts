@@ -33,6 +33,10 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+import {
+  assertTransferWriteEnabled
+} from "@/lib/server/transfer-write-policy";
+
 const ALLOWED_KEYS =
   new Set([
     "routeId",
@@ -60,10 +64,12 @@ export async function POST(
     );
 
     const idempotencyKey =
-      requireIdempotencyKey(request);
+  requireIdempotencyKey(request);
 
-    const body =
-      await requireJsonObject(request);
+await assertTransferWriteEnabled(context);
+
+const body =
+  await requireJsonObject(request);
 
     assertAllowedKeys(
       body,

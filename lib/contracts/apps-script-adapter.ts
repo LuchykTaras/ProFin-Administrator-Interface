@@ -17,9 +17,13 @@ export type AppsScriptAdapterCommand =
   | "getOperationJournal"
   | "getInventory"
   | "getClientBirthdaysWeb"
+  | "previewTransfer"
+  | "getTransferInbox"
+  | "getTransferOutbox"
   | "createOperationWeb"
   | "createTransfer"
   | "acceptTransfer"
+  | "returnTransfer"
   | "cancelOperation"
   | "closeShift";
 
