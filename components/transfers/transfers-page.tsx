@@ -1,3 +1,5 @@
+import { UkrainianDatePicker } from "@/components/ukrainian-date-picker";
+
 
 "use client";
 
@@ -585,13 +587,11 @@ function TransferDialog({
           <label className={css.label}>
             Дата
 
-            <input
-              type="date"
+            <UkrainianDatePicker
               value={operationDate}
               disabled={working}
-              onChange={(event) => {
-                onDateChange(event.target.value);
-              }}
+              onChange={onDateChange}
+              ariaLabel="Дата переміщення"
             />
           </label>
         </div>
