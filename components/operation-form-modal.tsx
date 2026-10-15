@@ -23,6 +23,8 @@ import {
   useState
 } from "react";
 
+import { UkrainianDatePicker } from "@/components/ukrainian-date-picker";
+
 import {
   getApiErrorMessage
 } from "@/lib/client/api-client";
@@ -711,7 +713,14 @@ function FieldControl({
       }
 
 
-      <input
+      {field.kind === "date" ? (
+        <UkrainianDatePicker
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          ariaLabel={field.label}
+        />
+      ) : <input
         type={
           field.kind ===
             "number"
@@ -749,7 +758,7 @@ function FieldControl({
                 .value
             )
         }
-      />
+      />}
     </div>
   );
 }
@@ -2234,27 +2243,11 @@ onSuccess?.(
                     size={16}
                   />
 
-                  <input
-                    type="date"
-
-                    value={
-                      newClientDraft.birthDate
-                    }
-
-                    disabled={
-                      submitting ||
-                      Boolean(
-                        submitResult
-                      )
-                    }
-
-                    onChange={
-                      event =>
-                        changeNewClientField(
-                          "birthDate",
-                          event.target.value
-                        )
-                    }
+                  <UkrainianDatePicker
+                    value={newClientDraft.birthDate}
+                    disabled={submitting || Boolean(submitResult)}
+                    onChange={value => changeNewClientField("birthDate", value)}
+                    ariaLabel="Дата народження"
                   />
                 </div>
               </label>
