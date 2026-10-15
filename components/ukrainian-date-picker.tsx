@@ -92,8 +92,15 @@ export function UkrainianDatePicker({
   const [invalid, setInvalid] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  // Do not overwrite incomplete text when we publish an ISO value locally.
+  const localValueRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (localValueRef.current === value) {
+      localValueRef.current = null;
+      return;
+    }
+    localValueRef.current = null;
     setTyped(toDisplay(value));
     setInvalid(false);
   }, [value]);
@@ -130,20 +137,25 @@ export function UkrainianDatePicker({
     }
 
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key !== "Escape") return;
+      // Capture first: the operation modal also listens to document keydown.
+      // Do not let the same Escape discard the user's unfinished operation.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setOpen(false);
     }
 
     movePanel();
     window.addEventListener("resize", movePanel);
     window.addEventListener("scroll", movePanel, true);
     document.addEventListener("pointerdown", dismiss);
-    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
 
     return () => {
       window.removeEventListener("resize", movePanel);
       window.removeEventListener("scroll", movePanel, true);
       document.removeEventListener("pointerdown", dismiss);
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey, true);
     };
   }, [open]);
 
@@ -165,21 +177,29 @@ export function UkrainianDatePicker({
   function updateTyped(text: string) {
     setTyped(text);
     setInvalid(false);
-    if (text.trim() === "") {
-      onChange("");
-      return;
-    }
     const iso = fromDisplay(text);
-    if (iso && permitted(iso, min, max)) onChange(iso);
+    const nextValue = iso && permitted(iso, min, max) ? iso : "";
+    // An incomplete/invalid edit must clear the old value in the parent form.
+    // Otherwise a submit could use a previously selected date.
+    if (nextValue !== value) {
+      localValueRef.current = nextValue;
+      onChange(nextValue);
+    }
   }
 
   function settleTyped() {
-    if (!typed.trim()) return;
+    if (!typed.trim()) {
+      setInvalid(false);
+      return;
+    }
     const iso = fromDisplay(typed);
     if (!iso || !permitted(iso, min, max)) {
+      // Keep invalid text visible for correction; never restore the old date.
       setInvalid(true);
-      setTyped(toDisplay(value));
+      return;
     }
+    setTyped(toDisplay(iso));
+    setInvalid(false);
   }
 
   function showCalendar() {
