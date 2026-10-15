@@ -525,6 +525,15 @@ function QuickAction({
 }
 
 
+function getLocationDisplayName(
+  locationName: string
+): string {
+  return locationName.trim() === "Основна"
+    ? "Бабурка"
+    : locationName;
+}
+
+
 function formatDate(
   date: Date,
   timezone: string
@@ -1697,9 +1706,11 @@ const [
                           value={
                             location.locationId
                           }
-                        >
+                                                >
                           {
-                            location.locationName
+                            getLocationDisplayName(
+                              location.locationName
+                            )
                           }
 
                           {
@@ -2640,10 +2651,11 @@ const [
                         Локація
                       </span>
 
-                      <strong>
+                        <strong>
                         {
-                          context
-                            .locationName
+                          getLocationDisplayName(
+                            context.locationName
+                          )
                         }
                       </strong>
                     </div>
@@ -2783,8 +2795,10 @@ const [
 
               {" — "}
 
-              {
-                context.locationName
+                {
+                getLocationDisplayName(
+                  context.locationName
+                )
               }
             </strong>
 
