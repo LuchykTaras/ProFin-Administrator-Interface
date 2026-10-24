@@ -12,7 +12,7 @@ const profiles = [
     url: "https://script.google.com/macros/s/AKfycby-Rho3TFGiw4XsokNsaTf5OUWGjg10ld3b9t9mL5QlGrPtZ9avPAkA3PsVYsHRVyon0w/exec",
     locationId: "baburka-test",
     spreadsheetId: "1UZawoIWSgZwmFlmk4HmOcTD_Ir9fxWjwBjTCRc9M6ng",
-    routeStatus: "DRAFT",
+    routeStatus: "READY",
     keyIdEnv: "BAB_TEST_HMAC_KEY_ID",
     secretEnv: "BAB_TEST_HMAC_SECRET",
   },
@@ -71,8 +71,17 @@ function canonical(req) {
 }
 
 function credentials(profile) {
-  const keyId = (process.env[profile.keyIdEnv] || "").trim();
-  const secret = (process.env[profile.secretEnv] || "").trim();
+  const keyId = (
+    process.env[profile.keyIdEnv] ||
+    process.env[`APPS_SCRIPT_${profile.name}_HMAC_KEY_ID`] ||
+    ""
+  ).trim();
+
+  const secret = (
+    process.env[profile.secretEnv] ||
+    process.env[`APPS_SCRIPT_${profile.name}_HMAC_SECRET`] ||
+    ""
+  ).trim();
   if (!keyId) throw new Error(`Missing ${profile.keyIdEnv}`);
   if (secret.length < 32) throw new Error(`${profile.secretEnv} must be at least 32 characters`);
   if (new Set(secret).size < 12) throw new Error(`${profile.secretEnv} does not appear sufficiently random; rotate TEST secret`);

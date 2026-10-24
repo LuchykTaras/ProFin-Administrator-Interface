@@ -129,12 +129,35 @@ export async function resolveTrustedTransferRoute(
             ON srcyr.project_id = tr.project_id
             AND srcyr.location_id = tr.source_location_id
             AND srcyr.financial_year = tr.financial_year
-            AND srcyr.status = 'ACTIVE'
-          INNER JOIN year_registry dstyr
-            ON dstyr.project_id = tr.project_id
-            AND dstyr.location_id = tr.destination_location_id
-            AND dstyr.financial_year = tr.financial_year
-            AND dstyr.status = 'ACTIVE'
+            AND (
+  (
+    srcyr.route_mode = 'PRODUCTION'
+    AND srcyr.status = 'ACTIVE'
+  )
+  OR
+  (
+    srcyr.route_mode = 'TEST'
+    AND srcyr.status IN ('READY', 'ACTIVE')
+  )
+)
+
+INNER JOIN year_registry dstyr
+ON dstyr.project_id = tr.project_id
+AND dstyr.location_id = tr.destination_location_id
+AND dstyr.financial_year = tr.financial_year
+AND (
+  (
+    dstyr.route_mode = 'PRODUCTION'
+    AND dstyr.status = 'ACTIVE'
+  )
+  OR
+  (
+    dstyr.route_mode = 'TEST'
+    AND dstyr.status IN ('READY', 'ACTIVE')
+  )
+)
+
+AND dstyr.route_mode = srcyr.route_mode
           WHERE
             tr.route_id = ${normalizedRouteId}
             AND tr.project_id = ${context.projectId}
@@ -176,16 +199,23 @@ export async function resolveTrustedTransferRoute(
             ON dst.project_id = tr.project_id
             AND dst.location_id = tr.destination_location_id
             AND dst.status = 'ACTIVE'
-          INNER JOIN year_registry srcyr
+                    INNER JOIN year_registry srcyr
             ON srcyr.project_id = tr.project_id
             AND srcyr.location_id = tr.source_location_id
             AND srcyr.financial_year = tr.financial_year
-            AND srcyr.status = 'ACTIVE'
+            AND (
+              (srcyr.route_mode = 'PRODUCTION' AND srcyr.status = 'ACTIVE')
+              OR (srcyr.route_mode = 'TEST' AND srcyr.status IN ('READY', 'ACTIVE'))
+            )
           INNER JOIN year_registry dstyr
             ON dstyr.project_id = tr.project_id
             AND dstyr.location_id = tr.destination_location_id
             AND dstyr.financial_year = tr.financial_year
-            AND dstyr.status = 'ACTIVE'
+            AND (
+              (dstyr.route_mode = 'PRODUCTION' AND dstyr.status = 'ACTIVE')
+              OR (dstyr.route_mode = 'TEST' AND dstyr.status IN ('READY', 'ACTIVE'))
+            )
+            AND dstyr.route_mode = srcyr.route_mode
           WHERE
             tr.route_id = ${normalizedRouteId}
             AND tr.project_id = ${context.projectId}
@@ -250,16 +280,23 @@ export async function listTrustedTransferRoutes(
       ON dst.project_id = tr.project_id
       AND dst.location_id = tr.destination_location_id
       AND dst.status = 'ACTIVE'
-    INNER JOIN year_registry srcyr
+        INNER JOIN year_registry srcyr
       ON srcyr.project_id = tr.project_id
       AND srcyr.location_id = tr.source_location_id
       AND srcyr.financial_year = tr.financial_year
-      AND srcyr.status = 'ACTIVE'
+      AND (
+        (srcyr.route_mode = 'PRODUCTION' AND srcyr.status = 'ACTIVE')
+        OR (srcyr.route_mode = 'TEST' AND srcyr.status IN ('READY', 'ACTIVE'))
+      )
     INNER JOIN year_registry dstyr
       ON dstyr.project_id = tr.project_id
       AND dstyr.location_id = tr.destination_location_id
       AND dstyr.financial_year = tr.financial_year
-      AND dstyr.status = 'ACTIVE'
+      AND (
+        (dstyr.route_mode = 'PRODUCTION' AND dstyr.status = 'ACTIVE')
+        OR (dstyr.route_mode = 'TEST' AND dstyr.status IN ('READY', 'ACTIVE'))
+      )
+      AND dstyr.route_mode = srcyr.route_mode
     WHERE
       tr.project_id = ${context.projectId}
       AND tr.financial_year = ${context.activeYear}

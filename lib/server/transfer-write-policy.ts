@@ -53,21 +53,52 @@ export async function assertDedicatedTransferAdapter(
 export async function transferWritesEnabled(
   context: SessionContext
 ): Promise<boolean> {
-  if (isAlt2026TransferWriteBlocked(context)) {
+    const route = await resolveAppsScriptAnnualRoute(context);
+
+  // PATCH 61.60 - TEST route allowed.
+  // ALT 2026 PRODUCTION remains blocked.
+  if (
+    isAlt2026TransferWriteBlocked(context) &&
+    route.routeMode !== "TEST"
+  ) {
     return false;
   }
-
-  const route = await resolveAppsScriptAnnualRoute(context);
 
   if (!route.adapterWebAppUrl?.trim()) {
     return false;
   }
 
-  if (route.routeMode === "TEST") {
-    return (
-      process.env.PROFIN_TRANSFERS_TEST_WRITE_ENABLED === "true"
-    );
+  // PATCH 61.62
+// Explicitly pinned TEST warehouse pair.
+
+if (route.routeMode === "TEST") {
+  const allowedTestWorkbooks: Record<string, string> = {
+    "baburka-test":
+      "1UZawoIWSgZwmFlmk4HmOcTD_Ir9fxWjwBjTCRc9M6ng",
+
+    "alternatyva-test":
+      "1ppIrvrdzkBTg2_OEpv7kKhSZS0q3iLQesZzEVrfxfFY"
+  };
+
+  const expectedSpreadsheetId =
+    allowedTestWorkbooks[context.locationId];
+
+  if (
+    context.projectId !== "demo-project" ||
+    context.activeYear !== 2026 ||
+    route.year !== 2026 ||
+    !expectedSpreadsheetId ||
+    route.spreadsheetId !== expectedSpreadsheetId ||
+    route.locationId !== context.locationId ||
+    route.projectId !== context.projectId
+  ) {
+    return false;
   }
+
+  return (
+    process.env.PROFIN_TRANSFERS_TEST_WRITE_ENABLED === "true"
+  );
+}
 
   return (
     route.routeMode === "PRODUCTION" &&
