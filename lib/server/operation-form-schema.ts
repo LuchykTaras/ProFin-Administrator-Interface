@@ -1336,8 +1336,7 @@ export async function getOperationFormSchema(
    * Trusted annual route додається
    * server-side у callAppsScriptAdapter().
    *
-   * "as never" тимчасово дозволяє
-   * не змінювати третій файл
+   * Команда типізована у
    * apps-script-adapter.ts.
    */
   const adapterResponse =
@@ -1365,7 +1364,7 @@ export async function getOperationFormSchema(
         params.requestId,
 
       command:
-        "getOperationFormSchemaWeb" as never,
+        "getOperationFormSchemaWeb",
 
             context:
         params.context,
