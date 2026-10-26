@@ -494,8 +494,33 @@ export async function resolveAppsScriptAnnualRoute(
     resolved.routeMode;
 
 
-  const registryStatus =
+    const registryStatus =
     resolved.status;
+
+
+  // SAFE-01
+  // Disabled by default.
+  // Never modify valid route behavior.
+
+  if (
+    process.env.PROFIN_STRICT_ROUTE_MODE === "true" &&
+    routeMode !== "PRODUCTION" &&
+    routeMode !== "TEST"
+  ) {
+    throw new AppError({
+      status: 409,
+
+      code: "ANNUAL_ROUTE_MODE_INVALID",
+
+      userMessage:
+        "Некоректний режим облікового маршруту.",
+
+      technicalMessage:
+        `Unsupported routeMode=${String(routeMode)}.`,
+
+      retryable: false
+    });
+  }
 
 
   const routeUsable =
