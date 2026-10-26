@@ -727,27 +727,10 @@ function normalizeAdapterResult(
     });
   }
 
-    console.info("[JOURNAL_SOURCE_DIAG]", {
-    expected: JOURNAL_SOURCE_SHEET,
-    actual: value.sourceSheet ?? null,
-    fields: Object.keys(value),
-    nestedSource:
-      isRecord(value.result)
-        ? value.result.sourceSheet ?? null
-        : null
-  });
-
-    const actualSource =
+  const actualSource =
     value.sourceSheet === undefined
       ? value.source
       : value.sourceSheet;
-
-  console.info("[JOURNAL_CONTRACT_57_6]", {
-    expectedSource: JOURNAL_SOURCE_SHEET,
-    actualSource,
-    monthKey: value.monthKey ?? null,
-    sourceFields: Object.keys(value)
-  });
 
   if (
     actualSource !==

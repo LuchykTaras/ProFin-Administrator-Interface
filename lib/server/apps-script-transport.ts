@@ -144,12 +144,33 @@ function getAppsScriptWebAppUrl(
       ? process.env.ALT_READ_DIAGNOSTIC_URL?.trim() || null
       : null;
 
+    // =====================================================
+  // SAFE-03
+  // PRODUCTION APPS SCRIPT ROUTE ISOLATION
+  //
+  // Legacy fallback is allowed ONLY for
+  // the verified Baburka 2026 production route.
+  //
+  // TEST and other production routes
+  // must use their dedicated adapter URL.
+  // =====================================================
+
+  const allowLegacyBaburkaFallback =
+    annualRoute.routeMode === "PRODUCTION" &&
+    annualRoute.projectId === "demo-project" &&
+    annualRoute.locationId === "main" &&
+    annualRoute.year === 2026 &&
+    annualRoute.spreadsheetId ===
+      "1EUffLqpIy-VOiGqIN85BaZ4dV62Sn6bz3PjzhiFrkDw";
+
+
   const raw =
     diagnosticUrl ||
+    routeUrl ||
     (
-      annualRoute.routeMode === "TEST"
-        ? routeUrl
-        : routeUrl || fallbackUrl
+      allowLegacyBaburkaFallback
+        ? fallbackUrl
+        : null
     );
 
 
