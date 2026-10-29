@@ -67,10 +67,24 @@ export async function POST(
       "transfer:create"
     );
 
-    const idempotencyKey =
+        const idempotencyKey =
       requireIdempotencyKey(request);
 
-      await assertTransferWriteEnabled(context);
+    // R3.5 — createTransfer-only key contract.
+    if (
+      !/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/.test(
+        idempotencyKey
+      )
+    ) {
+      throw new AppError({
+        status: 400,
+        code: "INVALID_TRANSFER_IDEMPOTENCY_KEY",
+        userMessage:
+          "Некоректний ключ захисту переміщення."
+      });
+    }
+
+    await assertTransferWriteEnabled(context);
 
     const body =
       await requireJsonObject(request);
