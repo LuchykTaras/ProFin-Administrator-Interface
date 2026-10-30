@@ -55,6 +55,10 @@ type ClientsPageProps = {
   error?:
     string;
 
+  totalCount?: number;
+  serverSearchQuery?: string;
+  onSearchQueryChange?: (query: string) => void;
+
   canCreateClient?:
     boolean;
 
@@ -102,16 +106,19 @@ export function ClientsPage({
   clients = [],
   loading = false,
   error = "",
+  totalCount,
+  serverSearchQuery,
+  onSearchQueryChange,
   canCreateClient = false,
   onCreateClient
 }: ClientsPageProps) {
   const [
-    searchQuery,
-    setSearchQuery
-  ] =
-    useState(
-      ""
-    );
+    localSearchQuery,
+    setLocalSearchQuery
+  ] = useState("");
+
+  const searchQuery = serverSearchQuery ?? localSearchQuery;
+  const setSearchQuery = onSearchQueryChange ?? setLocalSearchQuery;
 
 
   const [
@@ -154,6 +161,8 @@ export function ClientsPage({
   const filteredClients =
     useMemo(
       () => {
+        if (serverSearchQuery !== undefined) return clients;
+
         const normalizedQuery =
           searchQuery
             .trim()
@@ -199,7 +208,8 @@ export function ClientsPage({
       },
       [
         clients,
-        searchQuery
+        searchQuery,
+        serverSearchQuery
       ]
     );
 
@@ -351,7 +361,7 @@ export function ClientsPage({
 
           <strong>
             {
-              filteredClients.length
+              totalCount ?? filteredClients.length
             }
           </strong>
 
@@ -427,10 +437,7 @@ export function ClientsPage({
             </strong>
 
             <span>
-              UI уже готовий.
-              Список зʼявиться після
-              підключення дозволеного
-              джерела даних клієнтів.
+              За поточними умовами пошуку клієнтів не знайдено.
             </span>
           </div>
         )

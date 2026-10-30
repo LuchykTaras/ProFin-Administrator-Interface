@@ -54,8 +54,8 @@ import {
 } from "@/components/cancel-operation-modal";
 
 import {
-  ClientsPage
-} from "@/components/clients/clients-page";
+  ConnectedClientsPage
+} from "@/components/clients/connected-clients-page";
 
 import {
   Inventory
@@ -679,6 +679,8 @@ const [
   useState(
     0
   );
+
+const [clientRefreshKey, setClientRefreshKey] = useState(0);
 
   const [
     operationTypes,
@@ -2486,7 +2488,10 @@ const [
   }
 
 >
-  <ClientsPage
+  <ConnectedClientsPage
+    key={`${context.projectId}:${context.locationId}:${context.activeYear}`}
+    contextKey={`${context.projectId}:${context.locationId}:${context.activeYear}`}
+    refreshKey={clientRefreshKey}
     active={
       active ===
         "clients"
@@ -2915,6 +2920,7 @@ const [
                   value =>
                     value + 1
                 );
+                setClientRefreshKey(value => value + 1);
               }
             }
           }
