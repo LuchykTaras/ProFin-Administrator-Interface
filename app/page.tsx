@@ -2498,49 +2498,37 @@ const [
     }
 
     canCreateClient={
-      bootstrap
-        .permissions
-        .operationCreate &&
-      domainReady
-    }
+  bootstrap.permissions.operationCreate
+}
+
+onAdapterReady={
+  markDomainAdapterReady
+}
 
     onCreateClient={
-      () => {
-        /*
-         * UI-only:
-         * використовуємо вже існуючу
-         * OperationFormModal.
-         *
-         * Жодної нової server-команди
-         * тут не створюємо.
-         */
-        void prefetchOperationFormSchema({
-          operationType:
-            null,
+  () => {
+    /*
+     * PATCH A6-ASYNC
+     *
+     * ConnectedClientsPage вже виконав
+     * асинхронну перевірку LIGHT schema.
+     *
+     * Повторний prefetch тут заборонений.
+     */
 
-          category:
-            null,
+    setSelectedOperationType(
+      null
+    );
 
-          article:
-            null
-        });
+    setNewClientMode(
+      true
+    );
 
-
-        setSelectedOperationType(
-          null
-        );
-
-
-        setNewClientMode(
-          true
-        );
-
-
-        setOperationModalOpen(
-          true
-        );
-      }
-    }
+    setOperationModalOpen(
+      true
+    );
+  }
+}
     />
 </div>
 

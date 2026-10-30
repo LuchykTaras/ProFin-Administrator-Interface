@@ -55,9 +55,13 @@ type ClientsPageProps = {
   error?:
     string;
 
-  totalCount?: number;
+    totalCount?: number;
   serverSearchQuery?: string;
   onSearchQueryChange?: (query: string) => void;
+
+  creatingClient?: boolean;
+  creationError?: string;
+  searchDisabled?: boolean;
 
   canCreateClient?:
     boolean;
@@ -109,6 +113,9 @@ export function ClientsPage({
   totalCount,
   serverSearchQuery,
   onSearchQueryChange,
+  creatingClient = false,
+  creationError = "",
+  searchDisabled = false,
   canCreateClient = false,
   onCreateClient
 }: ClientsPageProps) {
@@ -268,8 +275,13 @@ export function ClientsPage({
           className=
             "clients-create-button"
 
-          disabled={
-            !canCreateClient
+                    disabled={
+            !canCreateClient ||
+            creatingClient
+          }
+
+          aria-busy={
+            creatingClient
           }
 
           onClick={
@@ -281,10 +293,37 @@ export function ClientsPage({
           />
 
           <span>
-            Новий клієнт
+            {
+              creatingClient
+                ? "Підключаємо форму…"
+                : "Новий клієнт"
+            }
           </span>
-        </button>
+                </button>
       </div>
+
+
+      {
+        creationError &&
+        (
+          <div
+            className=
+              "clients-state clients-state-error"
+
+            role="alert"
+          >
+            <strong>
+              Не вдалося підготувати форму нового клієнта
+            </strong>
+
+            <span>
+              {
+                creationError
+              }
+            </span>
+          </div>
+        )
+      }
 
 
       <div
@@ -300,12 +339,16 @@ export function ClientsPage({
           />
 
 
-          <input
+                    <input
             type=
               "search"
 
             value={
               searchQuery
+            }
+
+            disabled={
+              searchDisabled
             }
 
             placeholder=
@@ -324,7 +367,7 @@ export function ClientsPage({
           {
             searchQuery &&
             (
-              <button
+            <button
                 type=
                   "button"
 
@@ -333,6 +376,10 @@ export function ClientsPage({
 
                 aria-label=
                   "Очистити пошук"
+
+                disabled={
+                  searchDisabled
+                }
 
                 onClick={
                   () => {

@@ -14,6 +14,7 @@ type Props = {
   refreshKey: number;
   canCreateClient: boolean;
   onCreateClient: () => void;
+  onAdapterReady: () => void;
 };
 
 export function ConnectedClientsPage({
