@@ -1693,9 +1693,26 @@ function changeField(
   }
 
 
-  const canSubmit =
+  /*
+ * PATCH A7 — MODAL DOMAIN READINESS
+ *
+ * Перевіряємо фактично отриману
+ * server-side domain schema.
+ *
+ * Не запускаємо нових запитів.
+ */
+const modalDomainReady =
+  domainReady ||
   Boolean(
-    domainReady &&
+    schema?.source === "DOMAIN" &&
+    schema.operationTypes.some(
+      item => item.enabled
+    )
+  );
+
+const canSubmit =
+  Boolean(
+    modalDomainReady &&
     schema?.canSubmit &&
     requiredFieldsComplete &&
     newClientFieldsComplete &&
@@ -1914,12 +1931,14 @@ onSuccess?.(
 
 
         {
-          !domainReady &&
-          (
-            <div
-              className=
-                "operation-domain-warning"
-            >
+        !modalDomainReady &&
+        !loading &&
+        !error &&
+        (
+        <div
+         className=
+        "operation-domain-warning"
+          >
               <AlertTriangle
                 size={19}
               />

@@ -1,0 +1,158 @@
+warning: in the working copy of 'components/clients/connected-clients-page.tsx', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/components/clients/connected-clients-page.tsx b/components/clients/connected-clients-page.tsx[m
+[1mindex 82ee8c4..a400e7f 100644[m
+[1m--- a/components/clients/connected-clients-page.tsx[m
+[1m+++ b/components/clients/connected-clients-page.tsx[m
+[36m@@ -2,6 +2,7 @@[m
+ [m
+ import { useEffect, useState } from "react";[m
+ import { ClientsPage } from "@/components/clients/clients-page";[m
+[32m+[m[32mimport { NewClientStandaloneA83 } from "@/components/clients/new-client-standalone-a83";[m
+ import { getClientDirectoryPage } from "@/lib/client/client-directory-api";[m
+ import { getApiErrorMessage } from "@/lib/client/api-client";[m
+ import type { ClientDirectoryItem } from "@/lib/contracts/client-directory";[m
+[36m@@ -13,66 +14,82 @@[m [mtype Props = {[m
+   contextKey: string;[m
+   refreshKey: number;[m
+   canCreateClient: boolean;[m
+[31m-  onCreateClient: () => void;[m
+[31m-  onAdapterReady: () => void;[m
+[32m+[m[32m  onCreateClient: () => void; // Existing cash-operation callback: NOT used here.[m
+[32m+[m[32m  onAdapterReady: () => void; // Compatibility with existing page.tsx.[m
+[32m+[m[32m  onClientCreated?: () => void;[m
+ };[m
+ [m
+ export function ConnectedClientsPage({[m
+[31m-  active, contextKey, refreshKey, canCreateClient, onCreateClient[m
+[32m+[m[32m  active, contextKey, refreshKey, canCreateClient, onClientCreated[m
+ }: Props) {[m
+   const [query, setQuery] = useState("");[m
+   const [offset, setOffset] = useState(0);[m
+   const [clients, setClients] = useState<ClientDirectoryItem[]>([]);[m
+   const [total, setTotal] = useState(0);[m
+   const [loading, setLoading] = useState(false);[m
+[32m+[m[32m  const [loaded, setLoaded] = useState(false);[m
+   const [error, setError] = useState("");[m
+[32m+[m[32m  const [standaloneOpen, setStandaloneOpen] = useState(false);[m
+[32m+[m[32m  const [localRefreshKey, setLocalRefreshKey] = useState(0);[m
+[32m+[m[32m  const [createdMessage, setCreatedMessage] = useState("");[m
+[32m+[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    if (!active) setStandaloneOpen(false);[m
+[32m+[m[32m  }, [active, contextKey]);[m
+ [m
+   useEffect(() => {[m
+     if (!active) {[m
+       setClients([]);[m
+       setTotal(0);[m
+       setLoading(false);[m
+[32m+[m[32m      setLoaded(false);[m
+       return;[m
+     }[m
+[31m-[m
+     const controller = new AbortController();[m
+     setClients([]);[m
+     setTotal(0);[m
+     setError("");[m
+     setLoading(true);[m
+[31m-[m
+[31m-    const task = setTimeout(() => {[m
+[32m+[m[32m    setLoaded(false);[m
+[32m+[m[32m    const timer = setTimeout(() => {[m
+       void (async () => {[m
+         try {[m
+           const data = await getClientDirectoryPage({[m
+             query, offset, limit: PAGE_SIZE, signal: controller.signal[m
+           });[m
+           if (controller.signal.aborted) return;[m
+[31m-          // The server verified locationId against the current session.[m
+           setClients(data.items);[m
+           setTotal(data.total);[m
+[32m+[m[32m          setLoaded(true);[m
+         } catch (reason) {[m
+           if (controller.signal.aborted) return;[m
+[31m-          setError(getApiErrorMessage([m
+[31m-            reason, "Не вдалося завантажити клієнтів поточної філії."[m
+[31m-          ));[m
+[32m+[m[32m          setError(getApiErrorMessage(reason,[m
+[32m+[m[32m            "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u043a\u043b\u0456\u0454\u043d\u0442\u0456\u0432 \u0444\u0456\u043b\u0456\u0457."));[m
+         } finally {[m
+           if (!controller.signal.aborted) setLoading(false);[m
+         }[m
+       })();[m
+     }, query ? 250 : 0);[m
+[31m-[m
+     return () => {[m
+[31m-      clearTimeout(task);[m
+[32m+[m[32m      clearTimeout(timer);[m
+       controller.abort();[m
+     };[m
+[31m-  }, [active, contextKey, refreshKey, query, offset]);[m
+[32m+[m[32m  }, [active, contextKey, refreshKey, localRefreshKey, query, offset]);[m
+ [m
+   function changeQuery(next: string) {[m
+[32m+[m[32m    if (standaloneOpen) return;[m
+[32m+[m[32m    setCreatedMessage("");[m
+[32m+[m[32m    setLoaded(false);[m
+     setQuery(next);[m
+     setOffset(0);[m
+   }[m
+ [m
+[32m+[m[32m  function changeOffset(next: number) {[m
+[32m+[m[32m    if (standaloneOpen) return;[m
+[32m+[m[32m    setLoaded(false);[m
+[32m+[m[32m    setOffset(next);[m
+[32m+[m[32m  }[m
+[32m+[m
+   return ([m
+     <>[m
+       <ClientsPage[m
+[36m@@ -83,20 +100,38 @@[m [mexport function ConnectedClientsPage({[m
+         totalCount={total}[m
+         serverSearchQuery={query}[m
+         onSearchQueryChange={changeQuery}[m
+[31m-        canCreateClient={canCreateClient}[m
+[31m-        onCreateClient={onCreateClient}[m
+[32m+[m[32m        canCreateClient={canCreateClient && loaded && !loading && !error}[m
+[32m+[m[32m        searchDisabled={standaloneOpen}[m
+[32m+[m[32m        onCreateClient={() => setStandaloneOpen(true)}[m
+[32m+[m[32m      />[m
+[32m+[m[32m      {createdMessage && <p role="status" style={{color:"#087d61",padding:12}}>[m
+[32m+[m[32m        {createdMessage}[m
+[32m+[m[32m      </p>}[m
+[32m+[m[32m      <NewClientStandaloneA83[m
+[32m+[m[32m        open={active && standaloneOpen}[m
+[32m+[m[32m        onClose={() => setStandaloneOpen(false)}[m
+[32m+[m[32m        onSuccess={result => {[m
+[32m+[m[32m          setStandaloneOpen(false);[m
+[32m+[m[32m          // Search the newly created ID instead of re-fetching all 3854 clients.[m
+[32m+[m[32m          setQuery(result.clientId);[m
+[32m+[m[32m          setOffset(0);[m
+[32m+[m[32m          setLoaded(false);[m
+[32m+[m[32m          setLocalRefreshKey(value => value + 1);[m
+[32m+[m[32m          setCreatedMessage(`\u041a\u043b\u0456\u0454\u043d\u0442\u0430 \u0441\u0442\u0432\u043e\u0440\u0435\u043d\u043e: ${result.clientId}`);[m
+[32m+[m[32m          onClientCreated?.();[m
+[32m+[m[32m        }}[m
+       />[m
+       {active && !loading && !error && total > PAGE_SIZE && ([m
+[31m-        <nav aria-label="Сторінки клієнтської бази"[m
+[31m-             style={{ display: "flex", justifyContent: "center",[m
+[31m-                      alignItems: "center", gap: 16, marginTop: 16 }}>[m
+[31m-          <button type="button" disabled={offset === 0}[m
+[31m-                  onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>[m
+[32m+[m[32m        <nav aria-label="Client directory pages"[m
+[32m+[m[32m          style={{display:"flex",justifyContent:"center",alignItems:"center",[m
+[32m+[m[32m            gap:16,marginTop:16}}>[m
+[32m+[m[32m          <button type="button" disabled={offset === 0 || standaloneOpen}[m
+[32m+[m[32m            onClick={() => changeOffset(Math.max(0, offset - PAGE_SIZE))}>[m
+             Попередні[m
+           </button>[m
+[31m-          <span>{offset + 1}–{Math.min(offset + clients.length, total)} із {total}</span>[m
+[31m-          <button type="button" disabled={offset + PAGE_SIZE >= total}[m
+[31m-                  onClick={() => setOffset(offset + PAGE_SIZE)}>[m
+[32m+[m[32m          <span>{offset + 1} - {Math.min(offset + clients.length, total)} із {total}</span>[m
+[32m+[m[32m          <button type="button" disabled={offset + PAGE_SIZE >= total || standaloneOpen}[m
+[32m+[m[32m            onClick={() => changeOffset(offset + PAGE_SIZE)}>[m
+             Наступні[m
+           </button>[m
+         </nav>[m

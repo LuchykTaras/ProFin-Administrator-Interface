@@ -55,3 +55,5 @@ export async function GET(request: Request) {
     return apiFromError(requestId, error);
   }
 }
+
+export { POST } from "@/lib/server/client-create-a83";

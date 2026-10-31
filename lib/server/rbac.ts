@@ -12,6 +12,7 @@ import type {
 
 export type Permission =
   | "operation:create"
+  | "client:create"
   | "journal:read"
   | "inventory:read"
   | "correction:request"
@@ -40,6 +41,7 @@ const CASHIER_PERMISSIONS =
 const SENIOR_ADMIN_PERMISSIONS =
   new Set<Permission>([
     "operation:create",
+    "client:create",
     "journal:read",
     "inventory:read",
     "correction:request",
@@ -53,6 +55,7 @@ const SENIOR_ADMIN_PERMISSIONS =
 const OWNER_PERMISSIONS =
   new Set<Permission>([
     "operation:create",
+    "client:create",
     "journal:read",
     "inventory:read",
     "correction:request",
@@ -70,6 +73,7 @@ const OWNER_PERMISSIONS =
 const SYSTEM_PERMISSIONS =
   new Set<Permission>([
     "operation:create",
+    "client:create",
     "journal:read",
     "inventory:read",
     "correction:request",

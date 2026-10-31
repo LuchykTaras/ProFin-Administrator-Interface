@@ -18,6 +18,7 @@ export type AppsScriptAdapterCommand =
   | "getInventory"
   | "getClientBirthdaysWeb"
   | "getClientsWeb"
+  | "createClientWeb"
   | "previewTransfer"
   | "getTransferInbox"
   | "getTransferOutbox"

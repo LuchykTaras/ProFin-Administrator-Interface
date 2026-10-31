@@ -301,6 +301,7 @@ function commandRequiresIdempotency(
 ): boolean {
   return [
     "idempotencyProbe",
+    "createClientWeb",
     "createOperationWeb",
     "createTransfer",
     "acceptTransfer",

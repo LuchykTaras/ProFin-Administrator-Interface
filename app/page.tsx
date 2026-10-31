@@ -2489,6 +2489,9 @@ const [
 
 >
   <ConnectedClientsPage
+    onClientCreated={() => {
+      setBirthdayRefreshKey(value => value + 1);
+    }}
     key={`${context.projectId}:${context.locationId}:${context.activeYear}`}
     contextKey={`${context.projectId}:${context.locationId}:${context.activeYear}`}
     refreshKey={clientRefreshKey}
@@ -2498,8 +2501,9 @@ const [
     }
 
     canCreateClient={
-  bootstrap.permissions.operationCreate
-}
+      bootstrap.permissions.operationCreate &&
+      context.role !== "CASHIER"
+    }
 
 onAdapterReady={
   markDomainAdapterReady
