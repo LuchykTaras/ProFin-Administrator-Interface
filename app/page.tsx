@@ -682,6 +682,19 @@ const [
 
 const [clientRefreshKey, setClientRefreshKey] = useState(0);
 
+/*
+ * PATCH A8.5.2
+ * Client directory connection status.
+ * Independent from Cash domain adapter.
+ */
+const [
+  clientDirectoryConnection,
+  setClientDirectoryConnection
+] = useState<{
+  contextKey: string;
+  ready: boolean;
+} | null>(null);
+
   const [
     operationTypes,
     setOperationTypes
@@ -1451,12 +1464,26 @@ const [
     "П";
 
 
-  const currentDate =
+    const currentDate =
     formatDate(
       new Date(),
       context.timezone
     );
 
+  /*
+   * PATCH A8.5.2
+   * Current authorized branch context.
+   */
+  const activeContextKey =
+    `${context.projectId}:${context.locationId}:${context.activeYear}`;
+
+  /*
+   * Client-directory HTTP readiness.
+   * Never reuse another branch status.
+   */
+  const clientsReadReady =
+    clientDirectoryConnection?.contextKey === activeContextKey &&
+    clientDirectoryConnection.ready;
 
   const domainReady =
     bootstrap
@@ -2488,12 +2515,20 @@ const [
   }
 
 >
-  <ConnectedClientsPage
+    <ConnectedClientsPage
     onClientCreated={() => {
       setBirthdayRefreshKey(value => value + 1);
     }}
-    key={`${context.projectId}:${context.locationId}:${context.activeYear}`}
-    contextKey={`${context.projectId}:${context.locationId}:${context.activeYear}`}
+
+    onDirectoryReadStatus={(ready) => {
+      setClientDirectoryConnection({
+        contextKey: activeContextKey,
+        ready
+      });
+    }}
+
+    key={activeContextKey}
+    contextKey={activeContextKey}
     refreshKey={clientRefreshKey}
     active={
       active ===
@@ -2757,18 +2792,28 @@ onAdapterReady={
                 API / DB
               </StatusPill>
 
-              <StatusPill
+                            <StatusPill
                 tone={
-                  serviceTone(
-                    domainAdapterStatus
-                  )
+                  active === "clients"
+                    ? (
+                        clientsReadReady
+                          ? "ok"
+                          : "warning"
+                      )
+                    : serviceTone(
+                        domainAdapterStatus
+                      )
                 }
               >
                 <FileSpreadsheet
                   size={14}
                 />
 
-                Apps Script adapter
+                {
+                  active === "clients"
+                    ? "Клієнтська база · Apps Script"
+                    : "Apps Script adapter"
+                }
               </StatusPill>
             </div>
           </div>
@@ -2819,17 +2864,33 @@ onAdapterReady={
               Стан системи
             </span>
 
-            <StatusPill
+                        <StatusPill
               tone={
-                domainReady
-                  ? "ok"
-                  : "warning"
+                active === "clients"
+                  ? (
+                      clientsReadReady
+                        ? "ok"
+                        : "warning"
+                    )
+                  : (
+                      domainReady
+                        ? "ok"
+                        : "warning"
+                    )
               }
             >
               {
-                domainReady
-                  ? "Доменні команди доступні"
-                  : "Очікує domain adapter"
+                active === "clients"
+                  ? (
+                      clientsReadReady
+                        ? "Клієнтську базу підключено"
+                        : "Очікує клієнтську базу"
+                    )
+                  : (
+                      domainReady
+                        ? "Доменні команди доступні"
+                        : "Очікує domain adapter"
+                    )
               }
             </StatusPill>
           </div>

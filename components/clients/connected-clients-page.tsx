@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ClientsPage } from "@/components/clients/clients-page";
 import { NewClientStandaloneA83 } from "@/components/clients/new-client-standalone-a83";
 import { getClientDirectoryPage } from "@/lib/client/client-directory-api";
@@ -17,10 +17,16 @@ type Props = {
   onCreateClient: () => void; // Existing cash-operation callback: NOT used here.
   onAdapterReady: () => void; // Compatibility with existing page.tsx.
   onClientCreated?: () => void;
+  onDirectoryReadStatus?: (ready: boolean) => void;
 };
 
 export function ConnectedClientsPage({
-  active, contextKey, refreshKey, canCreateClient, onClientCreated
+  active,
+  contextKey,
+  refreshKey,
+  canCreateClient,
+  onClientCreated,
+  onDirectoryReadStatus
 }: Props) {
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
@@ -31,21 +37,42 @@ export function ConnectedClientsPage({
   const [error, setError] = useState("");
   const [standaloneOpen, setStandaloneOpen] = useState(false);
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
-  const [createdMessage, setCreatedMessage] = useState("");
+    const [createdMessage, setCreatedMessage] = useState("");
+
+  /*
+   * PATCH A8.5.1
+   * Stable directory status callback.
+   *
+   * Prevents parent re-renders from
+   * restarting client-directory requests.
+   */
+  const directoryStatusRef =
+    useRef(onDirectoryReadStatus);
+
+  useEffect(() => {
+    directoryStatusRef.current =
+      onDirectoryReadStatus;
+  }, [onDirectoryReadStatus]);
 
   useEffect(() => {
     if (!active) setStandaloneOpen(false);
   }, [active, contextKey]);
 
-  useEffect(() => {
+    useEffect(() => {
     if (!active) {
+      directoryStatusRef.current?.(false);
+
       setClients([]);
       setTotal(0);
       setLoading(false);
       setLoaded(false);
       return;
     }
+
     const controller = new AbortController();
+
+    directoryStatusRef.current?.(false);
+
     setClients([]);
     setTotal(0);
     setError("");
@@ -57,14 +84,30 @@ export function ConnectedClientsPage({
           const data = await getClientDirectoryPage({
             query, offset, limit: PAGE_SIZE, signal: controller.signal
           });
-          if (controller.signal.aborted) return;
+                    if (controller.signal.aborted) return;
+
           setClients(data.items);
           setTotal(data.total);
           setLoaded(true);
-        } catch (reason) {
+
+          /*
+           * PATCH A8.5.1
+           * Confirm successful directory read.
+           */
+          directoryStatusRef.current?.(true);
+                } catch (reason) {
           if (controller.signal.aborted) return;
-          setError(getApiErrorMessage(reason,
-            "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u043a\u043b\u0456\u0454\u043d\u0442\u0456\u0432 \u0444\u0456\u043b\u0456\u0457."));
+
+          /*
+           * PATCH A8.5.1
+           * Directory request failed.
+           */
+          directoryStatusRef.current?.(false);
+
+          setError(getApiErrorMessage(
+            reason,
+            "Не вдалося завантажити клієнтів філії."
+          ));
         } finally {
           if (!controller.signal.aborted) setLoading(false);
         }
