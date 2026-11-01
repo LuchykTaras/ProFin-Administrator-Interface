@@ -20,6 +20,7 @@ export type Permission =
   | "transfer:create"
   | "transfer:accept"
   | "shift:close"
+  | "shift:read"
   | "project:manage"
   | "year:manage"
   | "users:manage";
@@ -34,7 +35,8 @@ const CASHIER_PERMISSIONS =
     "cancellation:request",
     "transfer:create",
     "transfer:accept",
-    "shift:close"
+    "shift:close",
+    "shift:read"
   ]);
 
 
@@ -48,7 +50,8 @@ const SENIOR_ADMIN_PERMISSIONS =
     "cancellation:request",
     "transfer:create",
     "transfer:accept",
-    "shift:close"
+    "shift:close",
+    "shift:read"
   ]);
 
 
