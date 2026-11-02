@@ -1405,6 +1405,13 @@ export async function getOperationFormSchema(
   const responseData =
     adapterResponse.data;
 
+  // R3.3.5-G2: release identity from adapter envelope.
+  const adapterBuildId =
+    typeof adapterResponse.adapterBuildId ===
+      "string"
+      ? adapterResponse.adapterBuildId.trim() || null
+      : null;
+
 
   if (
     !responseData
@@ -1441,13 +1448,16 @@ export async function getOperationFormSchema(
    * sections / controls навіть
    * не проходять normalization.
    */
-  if (
+    if (
     params.schemaMode ===
       "LIGHT"
   ) {
-    return buildLightOperationFormSchema(
-      rawDomainResult
-    );
+    return {
+      ...buildLightOperationFormSchema(
+        rawDomainResult
+      ),
+      adapterBuildId
+    };
   }
 
 
@@ -1523,7 +1533,9 @@ export async function getOperationFormSchema(
     );
 
 
-  return {
+    return {
+  adapterBuildId,
+
   version:
     domain.version,
 

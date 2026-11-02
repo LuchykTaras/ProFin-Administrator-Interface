@@ -116,6 +116,9 @@ export type AppsScriptAdapterResponse<
   protocolVersion:
     string;
 
+  adapterBuildId?:
+    string | null;
+
   requestId:
     string;
 

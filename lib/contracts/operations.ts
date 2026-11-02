@@ -136,6 +136,9 @@ export type OperationFormSchema = {
   schemaChecksum:
     string | null;
 
+  adapterBuildId?:
+    string | null;
+
   source:
     OperationFieldSource;
 
