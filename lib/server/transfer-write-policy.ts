@@ -21,10 +21,21 @@ import type {
 export function isAlt2026TransferWriteBlocked(
   context: SessionContext
 ): boolean {
-  return (
+  const isProtectedProductionLocation =
     context.projectId === "demo-project" &&
     context.locationId === "alternatyva" &&
-    context.activeYear === 2026
+    context.activeYear === 2026;
+
+  if (!isProtectedProductionLocation) {
+    return false;
+  }
+
+  // R3.3.5: explicit second approval.
+  // Defaults to blocked.
+  return (
+    process.env
+      .PROFIN_ALT_2026_TRANSFER_WRITE_APPROVED
+      !== "true"
   );
 }
 
