@@ -98,6 +98,10 @@ import type {
 
 import OperationJournal from "@/components/journal/operation-journal";
 
+import {
+  ShiftReports
+} from "@/components/shifts/shift-reports";
+
 
 type NavKey =
   | "cash"
@@ -1873,7 +1877,7 @@ const [
           (
             <div
               className=
-                "dashboard"
+          "dashboard cash-dashboard"
             >
               {
                 !domainReady &&
@@ -2572,6 +2576,21 @@ onAdapterReady={
 </div>
 
 {
+  active === "shift-close" &&
+  (
+    <ShiftReports
+      active={active === "shift-close"}
+      activeYear={context.activeYear}
+      contextKey={[
+        context.projectId,
+        context.locationId,
+        context.activeYear
+      ].join(":")}
+    />
+  )
+}
+
+{
   active !==
     "cash" &&
   active !==
@@ -2584,6 +2603,8 @@ onAdapterReady={
     "transfers" &&
   active !==
     "clients" &&
+  active !==
+    "shift-close" &&
   (
             <section
               className=
@@ -2593,20 +2614,9 @@ onAdapterReady={
                 className=
                   "placeholder-icon"
               >
-  {
-  active ===
-    "shift-close"
-    ? (
-        <ClipboardCheck
-          size={34}
-        />
-      )
-    : (
-        <UserRound
-          size={34}
-        />
-      )
-}
+             <UserRound
+             size={34}
+             />
               </div>
 
 
@@ -2627,21 +2637,6 @@ onAdapterReady={
                   )?.label
                 }
               </h2>
-
-
-              {
-  active ===
-    "shift-close" &&
-  (
-    <p>
-      Тут буде сценарій
-      перевірки та
-      закриття робочої
-      зміни.
-    </p>
-  )
-}
-
 
               {
               active ===

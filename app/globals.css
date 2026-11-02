@@ -6822,3 +6822,35 @@ svg.lucide-refresh-cw {
       18px;
   }
 }
+
+
+/* ============================================
+   PATCH CASH-UI-01
+   Cash screen visual cleanup
+   UI ONLY - no domain logic changes
+   ============================================ */
+
+/* Hide four placeholder KPI cards */
+.cash-dashboard > .metric-grid {
+  display: none !important;
+}
+
+/* Hide duplicate operation and inventory previews */
+.cash-dashboard .operations-card,
+.cash-dashboard .inventory-card {
+  display: none !important;
+}
+
+/* Keep the integration status at full width */
+.cash-dashboard .content-grid {
+  display: block;
+}
+
+.cash-dashboard .right-column {
+  display: block;
+  width: 100%;
+}
+
+.cash-dashboard .notifications {
+  width: 100%;
+}

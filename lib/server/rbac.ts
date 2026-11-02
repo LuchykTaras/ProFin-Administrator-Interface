@@ -66,6 +66,7 @@ const OWNER_PERMISSIONS =
     "transfer:create",
     "transfer:accept",
     "shift:close",
+    "shift:read",
 
     "project:manage",
     "year:manage",
@@ -84,6 +85,7 @@ const SYSTEM_PERMISSIONS =
     "transfer:create",
     "transfer:accept",
     "shift:close",
+    "shift:read",
 
     "project:manage",
     "year:manage",
