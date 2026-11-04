@@ -39,10 +39,17 @@ export async function GET(
       "inventory:read"
     );
 
-    const routes =
-      await listTrustedTransferRoutes(
-        context
-      );
+    const routes = (
+      await listTrustedTransferRoutes(context)
+    ).map(route => ({
+      ...route,
+      counterpartyLocationName:
+        route.counterpartyLocationId === "main" &&
+        route.counterpartyCode === "BAB" &&
+        route.counterpartyLocationName === "Основна"
+          ? "Бабурка"
+          : route.counterpartyLocationName
+    }));
 
     const writeEnabled =
       routes.length > 0 &&
