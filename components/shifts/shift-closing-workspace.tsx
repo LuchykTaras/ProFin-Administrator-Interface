@@ -24,7 +24,7 @@ const KPI = [
   { key: "dailyReceipts", label: "Надходження за день, грн", unit: "UAH" },
   {
   key: "uniqueClients",
-  label: "Унікальні клієнти за день",
+  label: "Загальні візити (унікальні клієнти)",
   unit: "COUNT"
 },
   { key: "paidConsultations", label: "Платні консультації ProFin", unit: "COUNT" },
