@@ -143,55 +143,7 @@ const transferRoute =
     "OUTGOING"
   );
 
-  const scopedAltReverseWrite =
-  process.env.PROFIN_ALT_2026_SINGLE_REVERSE_ENABLED === "true" &&
-  context.projectId === "demo-project" &&
-  context.locationId === "alternatyva" &&
-  context.activeYear === 2026 &&
-  routeId === "trf-demo-2026-alternatyva-main" &&
-  sourceLotId === "TRF-BAB-ALT-20261105-022528-F35994-LOT-IN" &&
-  quantity === 1 &&
-  expectedSourceBalance === 1 &&
-  operationDate === "2026-11-05" &&
-  idempotencyKey === "PROFIN-ALT-BAB-20261105-ONCE-0001" &&
-  transferRoute.status === "ACTIVE" &&
-  transferRoute.sourceLocationId === "alternatyva" &&
-  transferRoute.destinationLocationId === "main" &&
-  transferRoute.sourceSpreadsheetId ===
-    "1Xq-byiSUVSOhNB30rDGrt9WecxI9unZEMXwxvwuhPM8" &&
-  transferRoute.destinationSpreadsheetId ===
-    "1EUffLqpIy-VOiGqIN85BaZ4dV62Sn6bz3PjzhiFrkDw";
-
-const approvedTestLotId =
-  process.env.PROFIN_BAB_2026_TEST_LOT_ID?.trim();
-
-const scopedTestWrite =
-  process.env.PROFIN_BAB_2026_SINGLE_TRANSFER_ENABLED === "true" &&
-  Boolean(approvedTestLotId) &&
-  context.projectId === "demo-project" &&
-  context.locationId === "main" &&
-  context.activeYear === 2026 &&
-  routeId === "trf-demo-2026-main-alternatyva" &&
-  transferRoute.projectId === "demo-project" &&
-  transferRoute.year === 2026 &&
-  transferRoute.status === "ACTIVE" &&
-  transferRoute.sourceLocationId === "main" &&
-  transferRoute.sourceCode === "BAB" &&
-  transferRoute.destinationLocationId === "alternatyva" &&
-  transferRoute.destinationCode === "ALT" &&
-  transferRoute.sourceSpreadsheetId ===
-    "1EUffLqpIy-VOiGqIN85BaZ4dV62Sn6bz3PjzhiFrkDw" &&
-  transferRoute.destinationSpreadsheetId ===
-    "1Xq-byiSUVSOhNB30rDGrt9WecxI9unZEMXwxvwuhPM8" &&
-    sourceLotId === approvedTestLotId &&
-  quantity === 1 &&
-  expectedSourceBalance === 1 &&
-  idempotencyKey ===
-    "PROFIN-BAB-20261105-ONCE-0001";
-
-if (!scopedTestWrite && !scopedAltReverseWrite) {
   await assertTransferWriteEnabled(context);
-}
 
     const adapter =
   await callAppsScriptAdapter<
