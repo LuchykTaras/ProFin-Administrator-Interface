@@ -11,35 +11,6 @@ import type {
 } from "@/lib/server/session";
 
 /**
- * PATCH 55.9.6.R2.1
- *
- * Тимчасове блокування всіх команд
- * запису переміщень для ALT 2026.
- *
- * Бабурку не зачіпаємо.
- */
-export function isAlt2026TransferWriteBlocked(
-  context: SessionContext
-): boolean {
-  const isProtectedProductionLocation =
-    context.projectId === "demo-project" &&
-    context.locationId === "alternatyva" &&
-    context.activeYear === 2026;
-
-  if (!isProtectedProductionLocation) {
-    return false;
-  }
-
-  // R3.3.5: explicit second approval.
-  // Defaults to blocked.
-  return (
-    process.env
-      .PROFIN_ALT_2026_TRANSFER_WRITE_APPROVED
-      !== "true"
-  );
-}
-
-/**
  * Кожна філія повинна мати власний
  * зареєстрований Apps Script deployment.
  */
@@ -61,60 +32,59 @@ export async function assertDedicatedTransferAdapter(
 /**
  * TEST і PRODUCTION мають незалежні дозволи.
  */
+const PRODUCTION_2026_PINNED_WORKBOOKS: Record<string, string> = {
+  main: "1EUffLqpIy-VOiGqIN85BaZ4dV62Sn6bz3PjzhiFrkDw",
+  alternatyva: "1Xq-byiSUVSOhNB30rDGrt9WecxI9unZEMXwxvwuhPM8"
+};
+
+/**
+ * TEST та PRODUCTION незалежні. Спільний production-дозвіл
+ * використовується для Бабурки й Альтернативи без одноразових винятків.
+ */
 export async function transferWritesEnabled(
   context: SessionContext
 ): Promise<boolean> {
-    const route = await resolveAppsScriptAnnualRoute(context);
-
-  // PATCH 61.60 - TEST route allowed.
-  // ALT 2026 PRODUCTION remains blocked.
-  if (
-    isAlt2026TransferWriteBlocked(context) &&
-    route.routeMode !== "TEST"
-  ) {
-    return false;
-  }
-
-  if (!route.adapterWebAppUrl?.trim()) {
-    return false;
-  }
-
-  // PATCH 61.62
-// Explicitly pinned TEST warehouse pair.
-
-if (route.routeMode === "TEST") {
-  const allowedTestWorkbooks: Record<string, string> = {
-    "baburka-test":
-      "1UZawoIWSgZwmFlmk4HmOcTD_Ir9fxWjwBjTCRc9M6ng",
-
-    "alternatyva-test":
-      "1ppIrvrdzkBTg2_OEpv7kKhSZS0q3iLQesZzEVrfxfFY"
-  };
-
-  const expectedSpreadsheetId =
-    allowedTestWorkbooks[context.locationId];
+  const route = await resolveAppsScriptAnnualRoute(context);
 
   if (
-    context.projectId !== "demo-project" ||
-    context.activeYear !== 2026 ||
-    route.year !== 2026 ||
-    !expectedSpreadsheetId ||
-    route.spreadsheetId !== expectedSpreadsheetId ||
+    !route.adapterWebAppUrl?.trim() ||
+    route.projectId !== context.projectId ||
     route.locationId !== context.locationId ||
-    route.projectId !== context.projectId
+    route.year !== context.activeYear
   ) {
     return false;
   }
 
-  return (
-    process.env.PROFIN_TRANSFERS_TEST_WRITE_ENABLED === "true"
-  );
-}
+  if (route.routeMode === "TEST") {
+    const allowedTestWorkbooks: Record<string, string> = {
+      "baburka-test": "1UZawoIWSgZwmFlmk4HmOcTD_Ir9fxWjwBjTCRc9M6ng",
+      "alternatyva-test": "1ppIrvrdzkBTg2_OEpv7kKhSZS0q3iLQesZzEVrfxfFY"
+    };
 
-  return (
-    route.routeMode === "PRODUCTION" &&
-    process.env.PROFIN_TRANSFERS_PRODUCTION_WRITE_ENABLED === "true"
-  );
+    return (
+      context.projectId === "demo-project" &&
+      context.activeYear === 2026 &&
+      route.spreadsheetId === allowedTestWorkbooks[context.locationId] &&
+      process.env.PROFIN_TRANSFERS_TEST_WRITE_ENABLED === "true"
+    );
+  }
+
+  if (route.routeMode !== "PRODUCTION" || route.status !== "ACTIVE") {
+    return false;
+  }
+
+  if (
+    context.projectId === "demo-project" &&
+    context.activeYear === 2026
+  ) {
+    const pinnedId = PRODUCTION_2026_PINNED_WORKBOOKS[context.locationId];
+
+    if (pinnedId && route.spreadsheetId !== pinnedId) {
+      return false;
+    }
+  }
+
+  return process.env.PROFIN_TRANSFERS_PRODUCTION_WRITE_ENABLED === "true";
 }
 
 /**
@@ -131,7 +101,7 @@ export async function assertTransferWriteEnabled(
       status: 503,
       code: "TRANSFER_WRITES_DISABLED",
       userMessage:
-        "Запис переміщень вимкнений. Спочатку необхідна TEST-перевірка."
+        "Запис переміщень вимкнений або маршрут не пройшов перевірку."
     });
   }
 }
