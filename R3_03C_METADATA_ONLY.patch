@@ -1,0 +1,231 @@
+diff --git a/app/api/shifts/google-access-probe/callback/route.ts b/app/api/shifts/google-access-probe/callback/route.ts
+index 945d0e2..9e6c0b2 100644
+--- a/app/api/shifts/google-access-probe/callback/route.ts
++++ b/app/api/shifts/google-access-probe/callback/route.ts
+@@ -1,6 +1,7 @@
+ import { OAuth2Client } from "google-auth-library";
+ import { apiFromError, apiOk, getRequestId } from "@/lib/server/api";
+ import { db } from "@/lib/server/db";
++import { probeR303CMetadata } from "@/lib/server/r3-google-metadata-probe";
+ import { AppError } from "@/lib/server/errors";
+ import { assertPermission } from "@/lib/server/rbac";
+ import { requireSessionContext } from "@/lib/server/session";
+@@ -55,23 +56,6 @@ async function oauthExchange(code: string, verifier: string, config: ReturnType<
+   return await response.json() as GoogleTokens;
+ }
+ 
+-async function readMetadata(url: string, token: string): Promise<{ ok: boolean; data: Record<string, unknown> | null }> {
+-  const response = await fetch(url, {
+-    method: "GET",
+-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+-    cache: "no-store",
+-    redirect: "error",
+-    signal: AbortSignal.timeout(15000)
+-  });
+-  if (!response.ok) return { ok: false, data: null };
+-  const value: unknown = await response.json();
+-  return {
+-    ok: typeof value === "object" && value !== null && !Array.isArray(value),
+-    data: typeof value === "object" && value !== null && !Array.isArray(value)
+-      ? value as Record<string, unknown> : null
+-  };
+-}
+-
+ function withNoStore(response: ReturnType<typeof apiOk> | ReturnType<typeof apiFromError>) {
+   response.headers.set("Cache-Control", "private, no-store");
+   response.headers.set("Referrer-Policy", "no-referrer");
+@@ -158,22 +142,16 @@ export async function GET(request: Request) {
+       throw new AppError({ status: 403, code: "R3_GOOGLE_LINK_MISMATCH", userMessage: "Google-акаунт не відповідає підтвердженій ProFin-прив'язці." });
+     }
+ 
+-    const drive = await readMetadata(
+-      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(config.spreadsheetId)}?fields=id,mimeType&supportsAllDrives=true`,
+-      tokens.access_token
+-    );
+-    const spreadsheetMetadataVerified =
+-      drive.ok && drive.data?.id === config.spreadsheetId &&
+-      drive.data?.mimeType === "application/vnd.google-apps.spreadsheet";
+-
+-    const script = await readMetadata(
+-      `https://script.googleapis.com/v1/projects/${encodeURIComponent(config.scriptId)}`,
+-      tokens.access_token
+-    );
+-    const scriptMetadataVerified = script.ok && script.data?.scriptId === config.scriptId;
++    const metadata = await probeR303CMetadata({
++      context,
++      date: challenge.date,
++      accessToken: tokens.access_token,
++      spreadsheetId: config.spreadsheetId,
++      scriptId: config.scriptId
++    });
+ 
+     return withNoStore(apiOk(requestId, {
+-      version: "PROFIN_R3_03B_OAUTH_METADATA_V1",
++      version: "PROFIN_R3_03C_METADATA_V1",
+       date: challenge.date,
+       role: context.role,
+       google: {
+@@ -182,12 +160,7 @@ export async function GET(request: Request) {
+         boundSubjectMatched: true,
+         oauthScopesVerified: true
+       },
+-      access: {
+-        spreadsheetMetadataVerified,
+-        scriptProjectMetadataVerified: scriptMetadataVerified,
+-        appsScriptCoreAclVerified: false,
+-        appsScriptExecutionVerified: false
+-      },
++      access: metadata,
+       integration: {
+         externalSnapshotEnabled: false,
+         snapshotExecuted: false,
+diff --git a/lib/server/r3-google-metadata-probe.ts b/lib/server/r3-google-metadata-probe.ts
+new file mode 100644
+index 0000000..923694c
+--- /dev/null
++++ b/lib/server/r3-google-metadata-probe.ts
+@@ -0,0 +1,144 @@
++import "server-only";
++
++import type { SessionContext } from "@/lib/server/session";
++import { resolveAppsScriptAnnualRoute } from "@/lib/server/apps-script-route";
++
++const BABURKA_2026_SPREADSHEET_ID =
++  "1EUffLqpIy-VOiGqIN85BaZ4dV62Sn6bz3PjzhiFrkDw";
++
++type MetadataRead = {
++  status: string;
++  value: Record<string, unknown> | null;
++};
++
++type ProbeInput = {
++  context: SessionContext;
++  date: string;
++  accessToken: string;
++  spreadsheetId: string;
++  scriptId: string;
++};
++
++async function readGoogleMetadata(
++  url: string,
++  token: string
++): Promise<MetadataRead> {
++  try {
++    const response = await fetch(url, {
++      method: "GET",
++      headers: {
++        Authorization: `Bearer ${token}`,
++        Accept: "application/json"
++      },
++      cache: "no-store",
++      redirect: "error",
++      signal: AbortSignal.timeout(12000)
++    });
++
++    if (!response.ok) {
++      return { status: `HTTP_${response.status}`, value: null };
++    }
++
++    const data: unknown = await response.json();
++    if (!data || typeof data !== "object" || Array.isArray(data)) {
++      return { status: "INVALID_METADATA", value: null };
++    }
++
++    return { status: "OK", value: data as Record<string, unknown> };
++  } catch {
++    return { status: "NETWORK_ERROR", value: null };
++  }
++}
++
++export async function probeR303CMetadata(input: ProbeInput) {
++  const base = {
++    version: "PROFIN_R3_03C_METADATA_V1" as const,
++    routePinnedVerified: false,
++    spreadsheetMetadataVerified: false,
++    scriptProjectMetadataVerified: false,
++    scriptParentVerified: false,
++    approvedScriptVerified: false as const,
++    appsScriptCoreAclVerified: false as const,
++    appsScriptExecutionVerified: false as const,
++    snapshotExecuted: false as const,
++    financialDataRead: false as const,
++    externalSnapshotEnabled: false as const,
++    canSubmit: false as const,
++    decision: "BLOCKED" as const,
++    spreadsheetApiStatus: "NOT_CALLED",
++    scriptApiStatus: "NOT_CALLED"
++  };
++
++  const { context, date, accessToken, spreadsheetId, scriptId } = input;
++  if (
++    context.projectId !== "demo-project" ||
++    context.locationId !== "main" ||
++    context.activeYear !== 2026 ||
++    spreadsheetId !== BABURKA_2026_SPREADSHEET_ID ||
++    !/^[A-Za-z0-9_-]{20,200}$/.test(scriptId) ||
++    !accessToken
++  ) {
++    return { ...base, status: "ROUTE_OR_CONFIG_DENIED" };
++  }
++
++  let routePinnedVerified = false;
++  try {
++    const route = await resolveAppsScriptAnnualRoute(context, date);
++    routePinnedVerified =
++      route.projectId === context.projectId &&
++      route.locationId === context.locationId &&
++      route.year === context.activeYear &&
++      route.routeMode === "PRODUCTION" &&
++      route.status === "ACTIVE" &&
++      route.spreadsheetId === BABURKA_2026_SPREADSHEET_ID;
++  } catch {
++    return { ...base, status: "ROUTE_LOOKUP_FAILED" };
++  }
++
++  if (!routePinnedVerified) {
++    return { ...base, status: "ROUTE_MISMATCH" };
++  }
++
++  const driveUrl = new URL(
++    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(spreadsheetId)}`
++  );
++  driveUrl.searchParams.set("fields", "id,mimeType,trashed");
++  driveUrl.searchParams.set("supportsAllDrives", "true");
++
++  const scriptUrl =
++    `https://script.googleapis.com/v1/projects/${encodeURIComponent(scriptId)}`;
++
++  const [spreadsheet, script] = await Promise.all([
++    readGoogleMetadata(driveUrl.toString(), accessToken),
++    readGoogleMetadata(scriptUrl, accessToken)
++  ]);
++
++  const spreadsheetMetadataVerified =
++    spreadsheet.status === "OK" &&
++    spreadsheet.value?.id === spreadsheetId &&
++    spreadsheet.value?.mimeType === "application/vnd.google-apps.spreadsheet" &&
++    spreadsheet.value?.trashed !== true;
++
++  const scriptProjectMetadataVerified =
++    script.status === "OK" &&
++    script.value?.scriptId === scriptId;
++
++  const scriptParentVerified =
++    spreadsheetMetadataVerified &&
++    scriptProjectMetadataVerified &&
++    script.value?.parentId === spreadsheetId;
++
++  return {
++    ...base,
++    status:
++      spreadsheetMetadataVerified && scriptParentVerified
++        ? "METADATA_VERIFIED_ACL_PENDING"
++        : "METADATA_INCOMPLETE",
++    routePinnedVerified,
++    spreadsheetMetadataVerified,
++    scriptProjectMetadataVerified,
++    scriptParentVerified,
++    spreadsheetApiStatus: spreadsheet.status,
++    scriptApiStatus: script.status
++  };
++}
