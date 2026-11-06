@@ -96,19 +96,17 @@ export async function transferWritesEnabled(
   }
 
   if (route.routeMode === "PRODUCTION") {
-    const expectedSpreadsheetId =
-      PROFIN_PRODUCTION_WORKBOOKS_2026[
-        context.locationId
-      ];
+  const expectedSpreadsheetId =
+    PROFIN_PRODUCTION_WORKBOOKS_2026[
+      context.locationId
+    ];
 
-    return (
-      Boolean(expectedSpreadsheetId) &&
-      route.spreadsheetId === expectedSpreadsheetId &&
-      route.status === "ACTIVE" &&
-      process.env
-        .PROFIN_TRANSFERS_PRODUCTION_WRITE_ENABLED === "true"
-    );
-  }
+  return (
+    Boolean(expectedSpreadsheetId) &&
+    route.spreadsheetId === expectedSpreadsheetId &&
+    route.status === "ACTIVE"
+  );
+}
 
   return false;
 }

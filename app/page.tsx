@@ -99,8 +99,8 @@ import type {
 import OperationJournal from "@/components/journal/operation-journal";
 
 import {
-  ShiftReports
-} from "@/components/shifts/shift-reports";
+  ShiftClosingWorkspace
+} from "@/components/shifts/shift-closing-workspace";
 
 
 type NavKey =
@@ -2619,7 +2619,7 @@ onAdapterReady={
 {
   active === "shift-close" &&
   (
-    <ShiftReports
+    <ShiftClosingWorkspace
       active={active === "shift-close"}
       activeYear={context.activeYear}
       contextKey={[
@@ -2627,6 +2627,8 @@ onAdapterReady={
         context.locationId,
         context.activeYear
       ].join(":")}
+      branch={getLocationDisplayName(context.locationName)}
+      administrator={context.displayName}
     />
   )
 }
