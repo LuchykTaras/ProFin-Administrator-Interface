@@ -238,8 +238,48 @@ AND dstyr.route_mode = srcyr.route_mode
     });
   }
 
+    // R3.3.5-G5.1-N1
+  // Canonical business name for BAB production.
+  // Does not modify IDs, route direction,
+  // authorization, spreadsheet routing or Neon.
+
+  const canonicalBranchName = (
+    locationId: string,
+    locationName: string,
+    branchCode: string,
+    spreadsheetId: string
+  ): string => {
+    const isVerifiedBaburkaProduction =
+      context.projectId === "demo-project" &&
+      context.activeYear === 2026 &&
+      locationId === "main" &&
+      branchCode === "BAB" &&
+      spreadsheetId ===
+        "1EUffLqpIy-VOiGqIN85BaZ4dV62Sn6bz3PjzhiFrkDw" &&
+      locationName === "Основна";
+
+    return isVerifiedBaburkaProduction
+      ? "Бабурка"
+      : locationName;
+  };
+
   return {
     ...row,
+
+    sourceLocationName: canonicalBranchName(
+      row.sourceLocationId,
+      row.sourceLocationName,
+      row.sourceCode,
+      row.sourceSpreadsheetId
+    ),
+
+    destinationLocationName: canonicalBranchName(
+      row.destinationLocationId,
+      row.destinationLocationName,
+      row.destinationCode,
+      row.destinationSpreadsheetId
+    ),
+
     year: Number(row.year),
     status: "ACTIVE"
   };
