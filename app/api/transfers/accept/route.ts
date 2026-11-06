@@ -34,10 +34,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import {
-  resolveAppsScriptAnnualRoute
-} from "@/lib/server/apps-script-route";
-
-import {
   assertTransferWriteEnabled
 } from "@/lib/server/transfer-write-policy";
 
@@ -100,67 +96,7 @@ export async function POST(
         "INCOMING"
       );
 
-    const annualRoute =
-      await resolveAppsScriptAnnualRoute(context);
-
-    const scopedTestAccept =
-      process.env.PROFIN_ALT_2026_SINGLE_ACCEPT_ENABLED === "true" &&
-      context.projectId === "demo-project" &&
-      context.locationId === "alternatyva" &&
-      context.activeYear === 2026 &&
-      annualRoute.routeMode === "PRODUCTION" &&
-      annualRoute.projectId === "demo-project" &&
-      annualRoute.locationId === "alternatyva" &&
-      annualRoute.year === 2026 &&
-      annualRoute.spreadsheetId ===
-        "1Xq-byiSUVSOhNB30rDGrt9WecxI9unZEMXwxvwuhPM8" &&
-      Boolean(annualRoute.adapterWebAppUrl?.trim()) &&
-      routeId === "trf-demo-2026-main-alternatyva" &&
-      transferRoute.projectId === "demo-project" &&
-      transferRoute.year === 2026 &&
-      transferRoute.status === "ACTIVE" &&
-      transferRoute.sourceLocationId === "main" &&
-      transferRoute.destinationLocationId === "alternatyva" &&
-      transferRoute.sourceCode === "BAB" &&
-      transferRoute.destinationCode === "ALT" &&
-      transferRoute.sourceSpreadsheetId ===
-        "1EUffLqpIy-VOiGqIN85BaZ4dV62Sn6bz3PjzhiFrkDw" &&
-      transferRoute.destinationSpreadsheetId ===
-        "1Xq-byiSUVSOhNB30rDGrt9WecxI9unZEMXwxvwuhPM8" &&
-      transferId ===
-        "TRF-BAB-ALT-20261105-022528-F35994" &&
-      idempotencyKey ===
-        "PROFIN-ALT-20261105-ACCEPT-ONCE-0001";
-
-        if (!scopedTestAccept) {
-      console.warn("ALT_ACCEPT_SCOPE_DENIED", {
-        flagEnabled:
-          process.env.PROFIN_ALT_2026_SINGLE_ACCEPT_ENABLED === "true",
-
-        projectId: context.projectId,
-        locationId: context.locationId,
-        activeYear: context.activeYear,
-
-        routeMode: annualRoute.routeMode,
-
-        spreadsheetMatches:
-          annualRoute.spreadsheetId ===
-          "1Xq-byiSUVSOhNB30rDGrt9WecxI9unZEMXwxvwuhPM8",
-
-        routeIdMatches:
-          routeId === "trf-demo-2026-main-alternatyva",
-
-        transferIdMatches:
-          transferId ===
-          "TRF-BAB-ALT-20261105-022528-F35994",
-
-        idempotencyKeyMatches:
-          idempotencyKey ===
-          "PROFIN-ALT-20261105-ACCEPT-ONCE-0001"
-      });
-
-      await assertTransferWriteEnabled(context);
-    }
+    await assertTransferWriteEnabled(context);
 
     const adapter =
       await callAppsScriptAdapter<
