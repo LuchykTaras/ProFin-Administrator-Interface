@@ -22,7 +22,11 @@ type Props = {
 
 const KPI = [
   { key: "dailyReceipts", label: "Надходження за день, грн", unit: "UAH" },
-  { key: "uniqueClients", label: "Загальні візити", unit: "COUNT" },
+  {
+  key: "uniqueClients",
+  label: "Унікальні клієнти за день",
+  unit: "COUNT"
+},
   { key: "paidConsultations", label: "Платні консультації ProFin", unit: "COUNT" },
   { key: "vaccinesSold", label: "Продані вакцини", unit: "COUNT" },
   { key: "vaccinesAdministered", label: "Зроблені вакцинації", unit: "COUNT" },
