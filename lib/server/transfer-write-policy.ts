@@ -1,3 +1,4 @@
+
 import "server-only";
 
 import {
@@ -10,43 +11,37 @@ import type {
   SessionContext
 } from "@/lib/server/session";
 
-/**
- * PATCH 55.9.6.R2.1
- *
- * Тимчасове блокування всіх команд
- * запису переміщень для ALT 2026.
- *
- * Бабурку не зачіпаємо.
- */
-export function isAlt2026TransferWriteBlocked(
-  context: SessionContext
-): boolean {
-  const isProtectedProductionLocation =
-    context.projectId === "demo-project" &&
-    context.locationId === "alternatyva" &&
-    context.activeYear === 2026;
 
-  if (!isProtectedProductionLocation) {
-    return false;
-  }
+const PROFIN_PRODUCTION_WORKBOOKS_2026: Readonly<
+  Record<string, string>
+> = Object.freeze({
+  main:
+    "1EUffLqpIy-VOiGqIN85BaZ4dV62Sn6bz3PjzhiFrkDw",
 
-  // R3.3.5: explicit second approval.
-  // Defaults to blocked.
-  return (
-    process.env
-      .PROFIN_ALT_2026_TRANSFER_WRITE_APPROVED
-      !== "true"
-  );
-}
+  alternatyva:
+    "1Xq-byiSUVSOhNB30rDGrt9WecxI9unZEMXwxvwuhPM8"
+});
+
+
+const PROFIN_TEST_WORKBOOKS_2026: Readonly<
+  Record<string, string>
+> = Object.freeze({
+  "baburka-test":
+    "1UZawoIWSgZwmFlmk4HmOcTD_Ir9fxWjwBjTCRc9M6ng",
+
+  "alternatyva-test":
+    "1ppIrvrdzkBTg2_OEpv7kKhSZS0q3iLQesZzEVrfxfFY"
+});
+
 
 /**
- * Кожна філія повинна мати власний
- * зареєстрований Apps Script deployment.
+ * Перевірка окремого Apps Script deployment.
  */
 export async function assertDedicatedTransferAdapter(
   context: SessionContext
 ): Promise<void> {
-  const route = await resolveAppsScriptAnnualRoute(context);
+  const route =
+    await resolveAppsScriptAnnualRoute(context);
 
   if (!route.adapterWebAppUrl?.trim()) {
     throw new AppError({
@@ -58,80 +53,82 @@ export async function assertDedicatedTransferAdapter(
   }
 }
 
+
 /**
- * TEST і PRODUCTION мають незалежні дозволи.
+ * PATCH 14.1
+ * Єдина політика міжфілійних переміщень.
+ *
+ * TEST і PRODUCTION незалежні.
  */
 export async function transferWritesEnabled(
   context: SessionContext
 ): Promise<boolean> {
-    const route = await resolveAppsScriptAnnualRoute(context);
-
-  // PATCH 61.60 - TEST route allowed.
-  // ALT 2026 PRODUCTION remains blocked.
-  if (
-    isAlt2026TransferWriteBlocked(context) &&
-    route.routeMode !== "TEST"
-  ) {
-    return false;
-  }
-
-  if (!route.adapterWebAppUrl?.trim()) {
-    return false;
-  }
-
-  // PATCH 61.62
-// Explicitly pinned TEST warehouse pair.
-
-if (route.routeMode === "TEST") {
-  const allowedTestWorkbooks: Record<string, string> = {
-    "baburka-test":
-      "1UZawoIWSgZwmFlmk4HmOcTD_Ir9fxWjwBjTCRc9M6ng",
-
-    "alternatyva-test":
-      "1ppIrvrdzkBTg2_OEpv7kKhSZS0q3iLQesZzEVrfxfFY"
-  };
-
-  const expectedSpreadsheetId =
-    allowedTestWorkbooks[context.locationId];
+  const route =
+    await resolveAppsScriptAnnualRoute(context);
 
   if (
     context.projectId !== "demo-project" ||
     context.activeYear !== 2026 ||
-    route.year !== 2026 ||
-    !expectedSpreadsheetId ||
-    route.spreadsheetId !== expectedSpreadsheetId ||
+    route.projectId !== context.projectId ||
     route.locationId !== context.locationId ||
-    route.projectId !== context.projectId
+    route.year !== context.activeYear ||
+    !route.adapterWebAppUrl?.trim()
   ) {
     return false;
   }
 
-  return (
-    process.env.PROFIN_TRANSFERS_TEST_WRITE_ENABLED === "true"
-  );
+  if (route.routeMode === "TEST") {
+    const expectedSpreadsheetId =
+      PROFIN_TEST_WORKBOOKS_2026[
+        context.locationId
+      ];
+
+    return (
+      Boolean(expectedSpreadsheetId) &&
+      route.spreadsheetId === expectedSpreadsheetId &&
+      (
+        route.status === "ACTIVE" ||
+        route.status === "READY"
+      ) &&
+      process.env
+        .PROFIN_TRANSFERS_TEST_WRITE_ENABLED === "true"
+    );
+  }
+
+  if (route.routeMode === "PRODUCTION") {
+    const expectedSpreadsheetId =
+      PROFIN_PRODUCTION_WORKBOOKS_2026[
+        context.locationId
+      ];
+
+    return (
+      Boolean(expectedSpreadsheetId) &&
+      route.spreadsheetId === expectedSpreadsheetId &&
+      route.status === "ACTIVE" &&
+      process.env
+        .PROFIN_TRANSFERS_PRODUCTION_WRITE_ENABLED === "true"
+    );
+  }
+
+  return false;
 }
 
-  return (
-    route.routeMode === "PRODUCTION" &&
-    process.env.PROFIN_TRANSFERS_PRODUCTION_WRITE_ENABLED === "true"
-  );
-}
 
 /**
- * Забороняє запис, доки відповідний
- * режим явно не активовано.
+ * Захист запису переміщень.
  */
 export async function assertTransferWriteEnabled(
   context: SessionContext
 ): Promise<void> {
-  const enabled = await transferWritesEnabled(context);
+  const enabled =
+    await transferWritesEnabled(context);
 
   if (!enabled) {
     throw new AppError({
       status: 503,
       code: "TRANSFER_WRITES_DISABLED",
       userMessage:
-        "Запис переміщень вимкнений. Спочатку необхідна TEST-перевірка."
+        "Запис переміщень вимкнений або маршрут не пройшов перевірку."
     });
   }
 }

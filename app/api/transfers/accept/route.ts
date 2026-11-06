@@ -1,3 +1,4 @@
+
 import type {
   AcceptTransferResult,
   IdempotentCommandResult
@@ -8,49 +9,54 @@ import {
   apiOk,
   getRequestId
 } from "@/lib/server/api";
+
 import {
   callAppsScriptAdapter
 } from "@/lib/server/apps-script-transport";
+
 import {
   AppError
 } from "@/lib/server/errors";
+
 import {
   assertAllowedKeys,
   requireIdempotencyKey,
   requireJsonObject,
   requireString
 } from "@/lib/server/operational-command-utils";
+
 import {
   resolveTrustedTransferRoute
 } from "@/lib/server/operational-config";
+
 import {
   assertPermission
 } from "@/lib/server/rbac";
+
 import {
   requireSessionContext
 } from "@/lib/server/session";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
-import {
-  resolveAppsScriptAnnualRoute
-} from "@/lib/server/apps-script-route";
 
 import {
   assertTransferWriteEnabled
 } from "@/lib/server/transfer-write-policy";
 
-const ALLOWED_KEYS =
-  new Set([
-    "routeId",
-    "transferId"
-  ]);
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+
+const ALLOWED_KEYS = new Set([
+  "routeId",
+  "transferId"
+]);
+
 
 type AdapterData = {
   idempotencyReplayed?: boolean;
   result?: AcceptTransferResult;
 };
+
 
 export async function POST(
   request: Request
@@ -67,7 +73,7 @@ export async function POST(
       "transfer:accept"
     );
 
-        const idempotencyKey =
+    const idempotencyKey =
       requireIdempotencyKey(request);
 
     const body =
@@ -93,74 +99,18 @@ export async function POST(
         "Не вказано ID переміщення."
       );
 
-        const transferRoute =
+    const transferRoute =
       await resolveTrustedTransferRoute(
         context,
         routeId,
         "INCOMING"
       );
 
-    const annualRoute =
-      await resolveAppsScriptAnnualRoute(context);
-
-    const scopedTestAccept =
-      process.env.PROFIN_ALT_2026_SINGLE_ACCEPT_ENABLED === "true" &&
-      context.projectId === "demo-project" &&
-      context.locationId === "alternatyva" &&
-      context.activeYear === 2026 &&
-      annualRoute.routeMode === "PRODUCTION" &&
-      annualRoute.projectId === "demo-project" &&
-      annualRoute.locationId === "alternatyva" &&
-      annualRoute.year === 2026 &&
-      annualRoute.spreadsheetId ===
-        "1Xq-byiSUVSOhNB30rDGrt9WecxI9unZEMXwxvwuhPM8" &&
-      Boolean(annualRoute.adapterWebAppUrl?.trim()) &&
-      routeId === "trf-demo-2026-main-alternatyva" &&
-      transferRoute.projectId === "demo-project" &&
-      transferRoute.year === 2026 &&
-      transferRoute.status === "ACTIVE" &&
-      transferRoute.sourceLocationId === "main" &&
-      transferRoute.destinationLocationId === "alternatyva" &&
-      transferRoute.sourceCode === "BAB" &&
-      transferRoute.destinationCode === "ALT" &&
-      transferRoute.sourceSpreadsheetId ===
-        "1EUffLqpIy-VOiGqIN85BaZ4dV62Sn6bz3PjzhiFrkDw" &&
-      transferRoute.destinationSpreadsheetId ===
-        "1Xq-byiSUVSOhNB30rDGrt9WecxI9unZEMXwxvwuhPM8" &&
-      transferId ===
-        "TRF-BAB-ALT-20261105-022528-F35994" &&
-      idempotencyKey ===
-        "PROFIN-ALT-20261105-ACCEPT-ONCE-0001";
-
-        if (!scopedTestAccept) {
-      console.warn("ALT_ACCEPT_SCOPE_DENIED", {
-        flagEnabled:
-          process.env.PROFIN_ALT_2026_SINGLE_ACCEPT_ENABLED === "true",
-
-        projectId: context.projectId,
-        locationId: context.locationId,
-        activeYear: context.activeYear,
-
-        routeMode: annualRoute.routeMode,
-
-        spreadsheetMatches:
-          annualRoute.spreadsheetId ===
-          "1Xq-byiSUVSOhNB30rDGrt9WecxI9unZEMXwxvwuhPM8",
-
-        routeIdMatches:
-          routeId === "trf-demo-2026-main-alternatyva",
-
-        transferIdMatches:
-          transferId ===
-          "TRF-BAB-ALT-20261105-022528-F35994",
-
-        idempotencyKeyMatches:
-          idempotencyKey ===
-          "PROFIN-ALT-20261105-ACCEPT-ONCE-0001"
-      });
-
-      await assertTransferWriteEnabled(context);
-    }
+    // PATCH 14.3
+    // Єдина серверна політика для обох філій.
+    await assertTransferWriteEnabled(
+      context
+    );
 
     const adapter =
       await callAppsScriptAdapter<
@@ -205,6 +155,7 @@ export async function POST(
       "Переміщення прийнято.",
       "TRANSFER_ACCEPTED"
     );
+
   } catch (error) {
     return apiFromError(
       requestId,

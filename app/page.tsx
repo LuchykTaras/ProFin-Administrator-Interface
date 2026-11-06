@@ -699,6 +699,40 @@ const [
   ready: boolean;
 } | null>(null);
 
+const [
+  transferConnection,
+  setTransferConnection
+] = useState<{
+  contextKey: string;
+  readReady: boolean;
+  writeReady: boolean;
+} | null>(null);
+
+const reportTransferConnection = useCallback(
+  (
+    contextKey: string,
+    readReady: boolean,
+    writeReady: boolean
+  ) => {
+    setTransferConnection(previous => {
+      if (
+        previous?.contextKey === contextKey &&
+        previous.readReady === readReady &&
+        previous.writeReady === writeReady
+      ) {
+        return previous;
+      }
+
+      return {
+        contextKey,
+        readReady,
+        writeReady
+      };
+    });
+  },
+  []
+);
+
   const [
     operationTypes,
     setOperationTypes
@@ -1494,6 +1528,14 @@ const [
       .domainCommandsReady ||
     domainAdapterStatus ===
       "OK";
+
+      const transferReadReady =
+  transferConnection?.contextKey === activeContextKey &&
+  transferConnection?.readReady === true;
+
+     const transferWriteReady =
+  transferReadReady &&
+  transferConnection?.writeReady === true;
 
 
     const domainUnavailableText =
@@ -2496,11 +2538,10 @@ const [
       "transfers"
   }
 >
-  <TransfersPage
+ <TransfersPage
   active={active === "transfers"}
-  contextKey={
-    `${context.projectId}:${context.locationId}:${context.activeYear}`
-  }
+  contextKey={activeContextKey}
+  onConnectionStatus={reportTransferConnection}
 />
 </div>
 
@@ -2788,28 +2829,36 @@ onAdapterReady={
               </StatusPill>
 
                             <StatusPill
-                tone={
-                  active === "clients"
-                    ? (
-                        clientsReadReady
-                          ? "ok"
-                          : "warning"
-                      )
-                    : serviceTone(
-                        domainAdapterStatus
-                      )
-                }
-              >
-                <FileSpreadsheet
-                  size={14}
-                />
+  tone={
+    active === "clients"
+      ? (
+          clientsReadReady
+            ? "ok"
+            : "warning"
+        )
+      : active === "transfers"
+        ? (
+            transferReadReady
+              ? "ok"
+              : "warning"
+          )
+        : serviceTone(
+            domainAdapterStatus
+          )
+  }
+>
+  <FileSpreadsheet
+    size={14}
+  />
 
-                {
-                  active === "clients"
-                    ? "Клієнтська база · Apps Script"
-                    : "Apps Script adapter"
-                }
-              </StatusPill>
+  {
+    active === "clients"
+      ? "Клієнтська база · Apps Script"
+      : active === "transfers"
+        ? "Переміщення · Apps Script"
+        : "Apps Script adapter"
+  }
+</StatusPill>
             </div>
           </div>
 
@@ -2860,34 +2909,50 @@ onAdapterReady={
             </span>
 
                         <StatusPill
-              tone={
-                active === "clients"
-                  ? (
-                      clientsReadReady
-                        ? "ok"
-                        : "warning"
-                    )
-                  : (
-                      domainReady
-                        ? "ok"
-                        : "warning"
-                    )
-              }
-            >
-              {
-                active === "clients"
-                  ? (
-                      clientsReadReady
-                        ? "Клієнтську базу підключено"
-                        : "Очікує клієнтську базу"
-                    )
-                  : (
-                      domainReady
-                        ? "Доменні команди доступні"
-                        : "Очікує domain adapter"
-                    )
-              }
-            </StatusPill>
+  tone={
+    active === "clients"
+      ? (
+          clientsReadReady
+            ? "ok"
+            : "warning"
+        )
+      : active === "transfers"
+        ? (
+            transferWriteReady
+              ? "ok"
+              : "warning"
+          )
+        : (
+            domainReady
+              ? "ok"
+              : "warning"
+          )
+  }
+>
+  {
+    active === "clients"
+      ? (
+          clientsReadReady
+            ? "Клієнтську базу підключено"
+            : "Очікує клієнтську базу"
+        )
+      : active === "transfers"
+        ? (
+            transferReadReady
+              ? (
+                  transferWriteReady
+                    ? "Переміщення підключено · запис дозволено"
+                    : "Переміщення підключено · лише читання"
+                )
+              : "Очікує вебадаптер переміщень"
+          )
+        : (
+            domainReady
+              ? "Доменні команди доступні"
+              : "Очікує domain adapter"
+          )
+  }
+</StatusPill>
           </div>
         </footer>
                 <CancelOperationModal

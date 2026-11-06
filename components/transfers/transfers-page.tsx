@@ -57,6 +57,12 @@ import css from "./transfers-page.module.css";
 type TransfersPageProps = {
   active: boolean;
   contextKey: string;
+
+  onConnectionStatus?: (
+    contextKey: string,
+    readReady: boolean,
+    writeReady: boolean
+  ) => void;
 };
 
 type TransferTab =
@@ -759,7 +765,8 @@ function ConfirmationDialog({
 
 export function TransfersPage({
   active,
-  contextKey
+  contextKey,
+  onConnectionStatus
 }: TransfersPageProps) {
   // Navigation
 
@@ -937,6 +944,12 @@ export function TransfersPage({
     setError("");
     setWriteEnabled(false);
 
+onConnectionStatus?.(
+  contextKey,
+  false,
+  false
+); 
+
     setLoadFailures({
       inventory: false,
       inbox: false,
@@ -1030,11 +1043,18 @@ export function TransfersPage({
           inbox.status === "fulfilled" &&
           outbox.status === "fulfilled";
 
-        setWriteEnabled(
-          allLoaded &&
-          settings.status === "fulfilled" &&
-          settings.value.writeEnabled === true
-        );
+        const writeReady =
+  allLoaded &&
+  settings.status === "fulfilled" &&
+  settings.value.writeEnabled === true;
+
+setWriteEnabled(writeReady);
+
+onConnectionStatus?.(
+  contextKey,
+  allLoaded,
+  writeReady
+);
 
         setError(errors.join(" | "));
       })
@@ -1048,7 +1068,12 @@ export function TransfersPage({
       cancelled = true;
       controller.abort();
     };
-  }, [active, contextKey, refreshKey]);
+  }, [
+  active,
+  contextKey,
+  refreshKey,
+  onConnectionStatus
+]);
 
 
   // ----------------------------------------------------------
