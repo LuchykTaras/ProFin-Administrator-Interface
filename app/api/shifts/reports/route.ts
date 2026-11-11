@@ -73,9 +73,21 @@ export async function GET(request: Request) {
   try {
     const context = await requireSessionContext();
 
-    assertPermission(context, "shift:read");
+assertPermission(context, "shift:read");
 
-    const url = new URL(request.url);
+if (
+  context.role !== "OWNER" &&
+  context.role !== "SENIOR_ADMIN"
+) {
+  throw new AppError({
+    status: 403,
+    code: "SHIFT_HISTORY_ROLE_DENIED",
+    userMessage: "Недостатньо прав для перегляду історії.",
+    retryable: false
+  });
+}
+
+const url = new URL(request.url);
     const params = url.searchParams;
 
     for (const key of params.keys()) {

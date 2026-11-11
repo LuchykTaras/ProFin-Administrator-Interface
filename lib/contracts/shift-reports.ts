@@ -44,8 +44,9 @@ export type ShiftReportsData = {
     months: ShiftMonthSummary[];
   };
   selectedReport: ShiftReport | null;
-  details: Array<Record<string, string | number | null>>;
-  source: {
+details: Array<Record<string, string | number | null>>;
+kpiDetails?: Array<Record<string, string | number | null>>;
+source: {
     reportsSheet: string;
     detailsSheet: string;
   };

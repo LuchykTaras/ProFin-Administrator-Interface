@@ -133,12 +133,18 @@ function isLatestVersion(
 function ReportDetails({
   report,
   details,
+  kpiDetails,
   reports
 }: {
   report: ShiftReport;
   details: ShiftReportsData["details"];
+  kpiDetails: NonNullable<ShiftReportsData["kpiDetails"]>;
   reports: ShiftReport[];
 }) {
+  const selectedKpis = kpiDetails.filter(
+    row => String(row["ID звіту"] ?? "") === report.shiftId
+  );
+
   return (
     <section className={styles.details}>
       <div className={styles.heading}>
@@ -229,12 +235,42 @@ function ReportDetails({
                   </div>
                 ))}
             </div>
+          
+          ))}
+        </div>
+      )}
+
+      <h4>Деталізація KPI</h4>
+
+      {selectedKpis.length === 0 ? (
+        <p>KPI для цієї версії не знайдено.</p>
+      ) : (
+        <div className={styles.detailRows}>
+          {selectedKpis.map((row, index) => (
+            <div
+              key={`${report.shiftId}-kpi-${index}`}
+              className={styles.detailRow}
+            >
+              {Object.entries(row)
+                .filter(([key, value]) =>
+                  key !== "ID звіту" &&
+                  value !== null &&
+                  value !== ""
+                )
+                .map(([key, value]) => (
+                  <div key={key}>
+                    <span>{key}</span>
+                    <strong>{String(value)}</strong>
+                  </div>
+                ))}
+            </div>
           ))}
         </div>
       )}
     </section>
   );
 }
+
 
 export function ShiftReports({
   active,
@@ -650,6 +686,7 @@ disabled={items.length === 0}
           <ReportDetails
           report={data.selectedReport}
           details={data.details}
+          kpiDetails={data.kpiDetails ?? []}
           reports={data.reports}
           />
           )}
