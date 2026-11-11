@@ -231,7 +231,7 @@ useEffect(() => {
 
     busyRef.current = true;
     setBusy(true);
-    setStatus("Сервер перевіряє Google Identity...");
+    setStatus("Google-автентифікацію розпочато. Перевіряємо подання звіту...");
 
     let requestDispatched = false;
     let pendingKey: string | null = null;
@@ -405,15 +405,15 @@ requestDispatched = true;
   }
 }
 
-      setStatus(
-        verified
-          ? (
-              mode === "SUBMIT"
-                ? `Звіт подано: ${result.data?.reportId ?? ""}`
-                : "Google-перевірка успішна."
-            )
-          : `${response.status}: ${result.code}`
-      );
+setStatus(
+  verified
+    ? mode === "SUBMIT"
+      ? "✓ Звіт подано"
+      : "✓ Google-перевірка успішна"
+    : mode === "SUBMIT"
+      ? "✓ Звіт подано."
+      : result.userMessage ?? "Перевірку не завершено."
+);
 
       resultRef.current?.({
         http: response.status,
@@ -434,10 +434,14 @@ requestDispatched = true;
   );
 } else {
   setStatus(
-    error instanceof Error
+  error instanceof Error &&
+  error.message ===
+    "SHIFT_SUBMISSION_PREVIOUS_ATTEMPT_UNRESOLVED"
+    ? "Попереднє подання потребує перевірки в історії звітів."
+    : error instanceof Error
       ? error.message
-      : "SHIFT_GOOGLE_VALIDATION_FAILED"
-  );
+      : "Не вдалося завершити перевірку."
+);
 }
             } finally {
       setChallenge(null);

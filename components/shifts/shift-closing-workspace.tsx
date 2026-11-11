@@ -1142,15 +1142,17 @@ setShiftDate(event.target.value);
             `Звіт подано: ${result.reportId ?? ""}.`
           );
         } else if (
-          result.code === "SHIFT_SUBMISSION_OUTCOME_UNKNOWN" ||
-          result.http >= 500
-        ) {
-          setValidationStatus(
-            "Запис міг відбутися, але підтвердження " +
-            "від сервера не отримано. " +
-            "Не подавайте звіт повторно. " +
-            "Потрібна звірка архіву."
-          );
+  result.code === "SHIFT_SUBMISSION_OUTCOME_UNKNOWN"
+) {
+  setValidationStatus(
+    "Статус подання не підтверджено. " +
+    "Перевірте історію звітів."
+  );
+} else if (result.http >= 500) {
+  setValidationStatus(
+    "Не вдалося отримати відповідь сервера. " +
+    "Перевірте історію звітів."
+  );
         } else {
           setValidationStatus(
             `Подання відхилено: ${result.code} (HTTP ${result.http}).`
