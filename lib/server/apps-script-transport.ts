@@ -308,7 +308,8 @@ function commandRequiresIdempotency(
     "returnTransfer", // PATCH 55.9.1.B
     "cancelOperation",
     "requestCorrection",
-    "closeShift"
+    "closeShift",
+    "submitShiftReport"
   ].includes(
     String(
       command

@@ -1,0 +1,8 @@
+﻿Get-Clipboard |
+  Set-Content .\r3-props-before.json -Encoding UTF8
+
+$report = Get-Content .\r3-props-before.json -Raw |
+  ConvertFrom-Json
+
+$report.count
+$report.valuesSha256

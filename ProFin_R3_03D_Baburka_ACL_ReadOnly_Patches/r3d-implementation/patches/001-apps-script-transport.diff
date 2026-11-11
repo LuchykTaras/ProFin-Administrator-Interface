@@ -1,0 +1,30 @@
+--- a/apps-script/webAdapterTransport.js
++++ b/apps-script/webAdapterTransport.js
+@@ -115,6 +115,27 @@
+ 
+ 
+ /**************************************************
++ * R3-03D BABURKA FINANCIAL READ / ACL CHECK
++ * The HMAC, nonce, annual route and schema were
++ * verified above. This branch NEVER submits.
++ **************************************************/
++if (request.command === 'getShiftFinancialSnapshot') {
++  if (typeof profinR3BabSecureRead_ !== 'function') {
++    throw profinWebAdapterError_(
++      503, 'R3_BAB_SECURE_READ_NOT_INSTALLED',
++      'Financial read handler unavailable.',
++      'profinR3BabSecureRead_ missing.', false
++    );
++  }
++  var r3BabResult = profinR3BabSecureRead_(request, trustedRoute);
++  return profinWebAdapterSuccessResponse_(requestId, {
++    result: r3BabResult,
++    status: 'OK',
++    receivedAt: new Date().toISOString()
++  });
++}
++
++/**************************************************
+  * PATCH 61.71
+  * BABURKA PRODUCTION READ-ONLY COMMANDS
+  **************************************************/

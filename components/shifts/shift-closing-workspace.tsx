@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -9,6 +8,14 @@ import {
 } from "@/lib/client/api-client";
 
 import { ShiftReports } from "@/components/shifts/shift-reports";
+
+import {
+  ShiftGoogleValidation
+} from "@/components/shifts/shift-google-validation";
+
+import type {
+  ShiftReportSubmissionDraft
+} from "@/lib/contracts/shift-report-submission";
 
 import styles from "./shift-closing-workspace.module.css";
 
@@ -35,13 +42,39 @@ const KPI = [
 ] as const;
 
 
-type ShiftPreviewProbe = {
+type FinancialAccount = {
+  name: string;
+  opening: number | null;
+  receipts: number;
+  payouts: number;
+  transferIn: number;
+  transferOut: number;
+};
+
+type FinancialSnapshot = {
   date: string;
-  transport: "OK";
-  snapshotAvailable: false;
-  snapshotStatus: "UNVERIFIED_EXTERNAL_CONTRACT";
-  metrics: null;
-  accounts: null;
+  revision: string;
+  initialBalancesRequired: boolean;
+  metrics: Array<{
+    key: string;
+    auto: number;
+  }>;
+  accounts: FinancialAccount[];
+};
+
+type SecureReadData = {
+  decision: "READ_ONLY";
+  identityLinkVerified: true;
+  appsScriptAclVerified: true;
+  snapshot: FinancialSnapshot;
+  canSubmit: false;
+};
+
+type ShiftAclData = {
+  decision: "PASS";
+  isOwner: boolean;
+  identityLinkVerified: true;
+  appsScriptAclVerified: true;
   canSubmit: false;
 };
 
@@ -50,8 +83,54 @@ const ACCOUNTS = [
   { key: "cash", name: "Каса, грн", title: "Каса" },
   { key: "abank", name: "Рахунок А-Банк, грн", title: "А-Банк" },
   { key: "mono", name: "Рахунок Моно, грн", title: "Моно" },
-  { key: "safe", name: "Сейф", title: "Сейф" }
+    { key: "safe", name: "Сейф", title: "Сейф" }
 ] as const;
+
+function formatValue(
+  value: number,
+  unit: "UAH" | "COUNT"
+): string {
+  const precision = unit === "UAH" ? 2 : 0;
+
+  const formatted = new Intl.NumberFormat("uk-UA", {
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision
+  }).format(value);
+
+  return unit === "UAH"
+    ? `${formatted} грн`
+    : formatted;
+}
+
+function metricValue(
+  snapshot: FinancialSnapshot | null,
+  key: string,
+  unit: "UAH" | "COUNT"
+): string {
+  const value = snapshot?.metrics.find(
+    item => item.key === key
+  )?.auto;
+
+  return typeof value === "number" &&
+    Number.isFinite(value)
+    ? formatValue(value, unit)
+    : "—";
+}
+
+function accountValue(
+  snapshot: FinancialSnapshot | null,
+  name: string,
+  field: keyof Omit<FinancialAccount, "name">
+): string {
+  const value = snapshot?.accounts.find(
+    item => item.name === name
+  )?.[field];
+
+  return typeof value === "number" &&
+    Number.isFinite(value)
+    ? formatValue(value, "UAH")
+    : "—";
+}
 
 function ShiftClosingForm({
   branch,
@@ -62,65 +141,484 @@ function ShiftClosingForm({
   const [comment, setComment] = useState("");
   const [checking, setChecking] = useState(false);
 
-  const [readStatus, setReadStatus] = useState(
-    "Оберіть дату для перевірки з'єднання."
-  );
+
+const [snapshot, setSnapshot] =
+  useState<FinancialSnapshot | null>(null);
+
+const [kpiEntries, setKpiEntries] = useState<
+  Record<string, {
+    mode: "CONFIRMED" | "CORRECTED";
+    actual: string;
+    comment: string;
+  }>
+>({});
+
+const [accountEntries, setAccountEntries] = useState<
+  Record<string, {
+    actualEnd: string;
+    comment: string;
+  }>
+>({});
+
+const [validationStatus, setValidationStatus] =
+  useState("");
+
+const [
+  verifiedDraftFingerprint,
+  setVerifiedDraftFingerprint
+] = useState<string | null>(null);
+
+const [officialReportSent, setOfficialReportSent] =
+  useState(false);
+
+const [openingEntries, setOpeningEntries] =
+  useState<Record<string, string>>({});
+
+const [confirmInitialBalances, setConfirmInitialBalances] =
+  useState(false);
+
+const [ownerVerified, setOwnerVerified] =
+  useState(false);
+
+const [readStatus, setReadStatus] = useState(
+  "Оберіть дату для завантаження фінансових даних."
+);
+
 
   const activeRequest = useRef<AbortController | null>(
     null
   );
 
-  useEffect(() => {
+    useEffect(() => {
     return () => activeRequest.current?.abort();
   }, []);
 
-  async function checkServerRead() {
-    if (!shiftDate) {
-      setReadStatus("Спочатку оберіть дату зміни.");
-      return;
+  
+const completedKpis = KPI.filter(metric => {
+  if (!snapshot) return false;
+
+  const entry = kpiEntries[metric.key];
+
+  const auto = snapshot.metrics.find(
+    item => item.key === metric.key
+  )?.auto;
+
+  if (
+    !entry ||
+    typeof auto !== "number" ||
+    !Number.isFinite(auto)
+  ) {
+    return false;
+  }
+
+  if (entry.mode === "CONFIRMED") {
+    return (
+      entry.actual.trim() !== "" &&
+      Number(entry.actual) === auto
+    );
+  }
+
+  const value = entry.actual.trim();
+
+  if (!/^\d+(?:\.\d{1,2})?$/.test(value)) {
+    return false;
+  }
+
+  const actual = Number(value);
+
+  return (
+    Number.isFinite(actual) &&
+    actual >= 0 &&
+    (metric.unit === "UAH" || Number.isInteger(actual)) &&
+    entry.comment.trim().length > 0
+  );
+}).length;
+
+
+function parseOpeningBalance(
+  raw: string | undefined
+): number | null {
+  const value = raw?.trim() ?? "";
+
+  if (!/^\d+(?:\.\d{1,2})?$/.test(value)) {
+    return null;
+  }
+
+  const amount = Number(value);
+
+  if (
+    !Number.isFinite(amount) ||
+    amount < 0 ||
+    amount > 1e10
+  ) {
+    return null;
+  }
+
+  return amount;
+}
+
+function buildReportDraft():
+  ShiftReportSubmissionDraft | null {
+
+  if (
+    !snapshot ||
+    snapshot.date !== shiftDate ||
+    checking ||
+    completedKpis !== KPI.length
+  ) {
+    return null;
+  }
+
+  const metrics =
+    {} as ShiftReportSubmissionDraft["metrics"];
+
+  for (const metric of KPI) {
+    const entry = kpiEntries[metric.key];
+
+    const auto = snapshot.metrics.find(
+      item => item.key === metric.key
+    )?.auto;
+
+    if (
+      !entry ||
+      typeof auto !== "number" ||
+      !Number.isFinite(auto)
+    ) {
+      return null;
     }
 
-    activeRequest.current?.abort();
+    const raw = entry.actual.trim();
 
-    const controller = new AbortController();
-    activeRequest.current = controller;
+    if (!/^\d+(?:\.\d{1,2})?$/.test(raw)) {
+      return null;
+    }
 
-    setChecking(true);
-    setReadStatus("Перевірка захищеного з'єднання…");
+    const actual = Number(raw);
 
-    try {
-      const response = await apiRequest<ShiftPreviewProbe>(
-        `/api/shifts/preview?date=${encodeURIComponent(shiftDate)}`,
-        {
-          method: "GET",
-          signal: controller.signal
-        }
+    if (
+      !Number.isFinite(actual) ||
+      actual < 0 ||
+      actual > 1e10
+    ) {
+      return null;
+    }
+
+    if (
+      metric.unit === "COUNT" &&
+      !Number.isInteger(actual)
+    ) {
+      return null;
+    }
+
+    if (
+      entry.mode === "CONFIRMED" &&
+      actual !== auto
+    ) {
+      return null;
+    }
+
+    if (
+      entry.mode === "CORRECTED" &&
+      !entry.comment.trim()
+    ) {
+      return null;
+    }
+
+    metrics[metric.key] = {
+      actual,
+      comment: entry.comment.trim()
+    };
+  }
+
+  const accounts =
+    {} as ShiftReportSubmissionDraft["accounts"];
+
+  for (const account of ACCOUNTS) {
+    const entry = accountEntries[account.name];
+
+    const raw = entry?.actualEnd.trim() ?? "";
+
+    if (!/^-?\d+(?:\.\d{1,2})?$/.test(raw)) {
+      return null;
+    }
+
+    const actualEnd = Number(raw);
+
+    if (
+      !Number.isFinite(actualEnd) ||
+      Math.abs(actualEnd) > 1e10
+    ) {
+      return null;
+    }
+
+    if (
+      (account.key === "cash" ||
+        account.key === "safe") &&
+      actualEnd < 0
+    ) {
+      return null;
+    }
+
+    accounts[account.name] = {
+      actualEnd,
+      comment: entry?.comment.trim() ?? ""
+    };
+  }
+
+  const draft: ShiftReportSubmissionDraft = {
+    date: shiftDate,
+    revision: snapshot.revision,
+    metrics,
+    accounts,
+    comment: comment.trim()
+  };
+
+  if (!snapshot.initialBalancesRequired) {
+    return draft;
+  }
+
+  const initialBalances =
+    {} as NonNullable<
+      ShiftReportSubmissionDraft["initialBalances"]
+    >;
+
+  for (const account of ACCOUNTS) {
+    const opening = parseOpeningBalance(
+      openingEntries[account.name]
+    );
+
+    if (opening === null) {
+      return null;
+    }
+
+    initialBalances[account.name] = opening;
+  }
+
+  if (
+    !ownerVerified ||
+    !confirmInitialBalances
+  ) {
+    return null;
+  }
+
+  return {
+    ...draft,
+    initialBalances,
+    confirmInitialBalances: true
+  };
+}
+
+const draftCandidate = buildReportDraft();
+
+const draftFingerprint = draftCandidate
+  ? JSON.stringify(draftCandidate)
+  : null;
+
+const draftReady = draftCandidate !== null;
+
+const submitReady =
+  draftFingerprint !== null &&
+  verifiedDraftFingerprint === draftFingerprint &&
+  !officialReportSent;
+
+
+function checkFormLocally() {
+  if (!snapshot || snapshot.date !== shiftDate) {
+    setValidationStatus(
+      "Спочатку завантажте актуальні фінансові дані."
+    );
+    return;
+  }
+
+  if (completedKpis !== KPI.length) {
+    setValidationStatus(
+      `Опрацьовано ${completedKpis} із ${KPI.length} KPI.`
+    );
+    return;
+  }
+
+  const invalidAccount = ACCOUNTS.find(account => {
+    const value =
+      accountEntries[account.name]?.actualEnd?.trim();
+
+    if (
+      !value ||
+      !/^-?\d+(?:\.\d{1,2})?$/.test(value)
+    ) {
+      return true;
+    }
+
+    const amount = Number(value);
+
+    return (
+      !Number.isFinite(amount) ||
+      Math.abs(amount) > 1e10 ||
+      (
+        (account.key === "cash" ||
+          account.key === "safe") &&
+        amount < 0
+      )
+    );
+  });
+
+  if (invalidAccount) {
+    setValidationStatus(
+      `Перевірте фактичний залишок: ${invalidAccount.title}.`
+    );
+    return;
+  }
+
+  if (snapshot.initialBalancesRequired) {
+  const missingOpening = ACCOUNTS.find(
+    account =>
+      parseOpeningBalance(
+        openingEntries[account.name]
+      ) === null
+  );
+
+  if (missingOpening) {
+    setValidationStatus(
+      `Введіть початковий залишок: ${missingOpening.title}.`
+    );
+    return;
+  }
+
+  if (!ownerVerified) {
+    setValidationStatus(
+      "Початкові залишки введено. Для першого офіційного звіту потрібне затвердження власником."
+    );
+    return;
+  }
+
+  if (!confirmInitialBalances) {
+    setValidationStatus(
+      "Власник має підтвердити початкові залишки."
+    );
+    return;
+  }
+}
+
+setValidationStatus(
+  draftReady
+    ? "Анкета заповнена. Можна виконати захищену Google-перевірку."
+    : "Перевірте заповнення анкети."
+);
+}
+
+async function checkServerRead() {
+
+  if (!shiftDate) {
+    setReadStatus("Спочатку оберіть дату зміни.");
+    return;
+  }
+
+  activeRequest.current?.abort();
+
+  const controller = new AbortController();
+  activeRequest.current = controller;
+
+setSnapshot(null);
+setKpiEntries({});
+setAccountEntries({});
+setOpeningEntries({});
+setConfirmInitialBalances(false);
+setOwnerVerified(false);
+setVerifiedDraftFingerprint(null);
+setOfficialReportSent(false);
+setValidationStatus("");
+setChecking(true);
+setReadStatus("Завантаження фінансових даних ProFin…");
+
+  try {
+    const response = await apiRequest<SecureReadData>(
+      `/api/shifts/reports/secure-read?date=${encodeURIComponent(shiftDate)}&mode=snapshot`,
+      {
+        method: "GET",
+        signal: controller.signal
+      }
+    );
+
+    if (controller.signal.aborted) return;
+
+    const result = response.data;
+    const data = result?.snapshot;
+
+    if (
+      response.code !== "R3_BAB_READ_ONLY" ||
+      result?.decision !== "READ_ONLY" ||
+      result.identityLinkVerified !== true ||
+      result.appsScriptAclVerified !== true ||
+      result.canSubmit !== false ||
+      !data ||
+      data.date !== shiftDate ||
+      !/^[a-f0-9]{64}$/.test(data.revision) ||
+      !Array.isArray(data.metrics) ||
+      !Array.isArray(data.accounts) ||
+      data.metrics.length !== KPI.length ||
+      data.accounts.length !== ACCOUNTS.length ||
+      !KPI.every(item =>
+        data.metrics.some(metric => metric.key === item.key)
+      ) ||
+      !ACCOUNTS.every(item =>
+        data.accounts.some(account => account.name === item.name)
+      )
+    ) {
+      throw new Error(
+        "Фінансовий SNAPSHOT не пройшов перевірку."
       );
+    }
 
-      if (controller.signal.aborted) return;
+    
+let isVerifiedOwner = false;
 
+if (data.initialBalancesRequired) {
+  try {
+    const acl = await apiRequest<ShiftAclData>(
+      `/api/shifts/reports/secure-read?date=${encodeURIComponent(shiftDate)}&mode=acl`,
+      {
+        method: "GET",
+        signal: controller.signal
+      }
+    );
+
+    isVerifiedOwner =
+      acl.code === "R3_BAB_ACL_PASS" &&
+      acl.data?.decision === "PASS" &&
+      acl.data.isOwner === true &&
+      acl.data.identityLinkVerified === true &&
+      acl.data.appsScriptAclVerified === true &&
+      acl.data.canSubmit === false;
+  } catch {
+    isVerifiedOwner = false;
+  }
+}
+
+if (controller.signal.aborted) return;
+
+setOwnerVerified(isVerifiedOwner);
+setSnapshot(data);
+
+setReadStatus(
+  "Отримано 7 KPI та 4 рахунки. Режим: тільки читання."
+);
+
+  } catch (error) {
+    if (!controller.signal.aborted) {
+      setSnapshot(null);
       setReadStatus(
-        response.data?.transport === "OK" &&
-        response.data.snapshotAvailable === false
-          ? "Apps Script доступний. Контракт читання 7 KPI та 4 рахунків ще не підтверджено."
-          : "Snapshot не перевірено. Значення недоступні."
+        getApiErrorMessage(
+          error,
+          "Не вдалося завантажити фінансові дані."
+        )
       );
-    } catch (error) {
-      if (!controller.signal.aborted) {
-        setReadStatus(
-          getApiErrorMessage(
-            error,
-            "Не вдалося перевірити доступність Apps Script."
-          )
-        );
-      }
-    } finally {
-      if (!controller.signal.aborted) {
-        setChecking(false);
-        activeRequest.current = null;
-      }
+    }
+  } finally {
+    if (activeRequest.current === controller) {
+      setChecking(false);
+      activeRequest.current = null;
     }
   }
+}
 
   return (
 
@@ -142,16 +640,29 @@ function ShiftClosingForm({
                   id="shiftDate"
                   type="date"
                   value={shiftDate}
-                                    onChange={event => {
-                    activeRequest.current?.abort();
-                    activeRequest.current = null;
-                    setChecking(false);
-                    setReadStatus(
-                      "Оберіть дату для перевірки з'єднання."
-                    );
-                    setShiftDate(event.target.value);
-                    setComment("");
-                  }}
+                onChange={event => {
+  activeRequest.current?.abort();
+  activeRequest.current = null;
+
+  setChecking(false);
+setSnapshot(null);
+setKpiEntries({});
+setAccountEntries({});
+setOpeningEntries({});
+setConfirmInitialBalances(false);
+setOwnerVerified(false);
+setVerifiedDraftFingerprint(null);
+setOfficialReportSent(false);
+setValidationStatus("");
+
+setShiftDate(event.target.value);
+  setComment("");
+
+  setReadStatus(
+    "Завантажте фінансові дані для обраної дати."
+  );
+}}
+
                   aria-label="Дата зміни"
                 />
               </div>
@@ -199,20 +710,44 @@ function ShiftClosingForm({
               </span>
             </div>
             <div className={styles.warn} role="status">
-            R1-01 перевіряє тільки захищене з'єднання. Дані 7 KPI і 4 рахунків
-              недоступні без затвердженої зовнішньої команди. Підтвердження
-              та подання залишаються заблокованими.
-            </div>
+  {snapshot ? (
+    <>
+      R3-04 · Захищені фінансові дані отримано.
+      {" "}
+      Revision:
+      {" "}
+      <code title={snapshot.revision}>
+        {snapshot.revision.slice(0, 12)}…
+      </code>
+      {snapshot.initialBalancesRequired &&
+        " Початкові залишки потребують підтвердження власника."}
+      {" "}
+      Подання звіту заблоковано.
+    </>
+  ) : (
+    <>
+      R3-04 · Фінансові дані ще не завантажені.
+      Підтвердження та подання звіту заблоковані.
+    </>
+  )}
+</div>
           </div>
         </section>
 
         <div className={styles.sections}>
           <div className={styles.sectionHeading}>
             <h2>01 / Звірка показників</h2>
-            <span className={styles.progress}>0 із 7 підтверджено</span>
+            <span className={styles.progress}>
+  {completedKpis} із 7 опрацьовано
+</span>
           </div>
           <div className={styles.progressTrack}>
-            <div className={styles.progressBar} style={{ width: "0%" }} />
+            <div
+  className={styles.progressBar}
+  style={{
+    width: `${(completedKpis / KPI.length) * 100}%`
+  }}
+/>
           </div>
 
           {KPI.map((metric, index) => (
@@ -221,68 +756,209 @@ function ShiftClosingForm({
                 <h3 className={styles.cardTitle}>
                   {index + 1}. {metric.label}
                 </h3>
-                <span className={styles.statusPill}>Не перевірено</span>
+                <span className={styles.statusPill}>
+               {snapshot ? "Завантажено" : "Не перевірено"}
+              </span>
               </div>
               <div className={styles.eyebrow}>За даними ProFin</div>
-              <div className={styles.metricAuto}>—</div>
-              <div className={styles.actions}>
-                <button type="button" disabled>✓ Підтверджую</button>
-                <button type="button" disabled>✎ Коригувати</button>
-              </div>
-              <div className={styles.editFields} hidden>
-                <label htmlFor={`kpi_${metric.key}`}>Фактичне значення</label>
-                <input
-                  id={`kpi_${metric.key}`}
-                  type="number"
-                  min="0"
-                  step={metric.unit === "UAH" ? "0.01" : "1"}
-                  placeholder="Введіть значення"
-                  disabled
-                />
-                <label htmlFor={`knote_${metric.key}`}>Причина коригування</label>
-                <textarea
-                  id={`knote_${metric.key}`}
-                  rows={2}
-                  maxLength={500}
-                  placeholder="Опишіть причину відхилення"
-                  disabled
-                />
-              </div>
+             <div className={styles.metricAuto}>
+             {metricValue(snapshot, metric.key, metric.unit)}
+             </div>
+              
+<div className={styles.actions}>
+  <button
+    type="button"
+    disabled={!snapshot || checking}
+    onClick={() => {
+      const auto = snapshot?.metrics.find(
+        item => item.key === metric.key
+      )?.auto;
+
+      if (typeof auto !== "number") return;
+
+      setKpiEntries(previous => ({
+        ...previous,
+        [metric.key]: {
+          mode: "CONFIRMED",
+          actual: String(auto),
+          comment: ""
+        }
+      }));
+
+      setValidationStatus("");
+    }}
+  >
+    ✓ Підтверджую
+  </button>
+
+  <button
+    type="button"
+    disabled={!snapshot || checking}
+    onClick={() => {
+      const auto = snapshot?.metrics.find(
+        item => item.key === metric.key
+      )?.auto;
+
+      if (typeof auto !== "number") return;
+
+      setKpiEntries(previous => ({
+        ...previous,
+        [metric.key]: {
+          mode: "CORRECTED",
+          actual: String(auto),
+          comment: previous[metric.key]?.comment ?? ""
+        }
+      }));
+
+      setValidationStatus("");
+    }}
+  >
+    ✎ Коригувати
+  </button>
+</div>
+
+<div
+  className={styles.editFields}
+  hidden={kpiEntries[metric.key]?.mode !== "CORRECTED"}
+>
+  <label htmlFor={`kpi_${metric.key}`}>
+    Фактичне значення
+  </label>
+
+  <input
+    id={`kpi_${metric.key}`}
+    type="number"
+    min="0"
+    step={metric.unit === "UAH" ? "0.01" : "1"}
+    value={kpiEntries[metric.key]?.actual ?? ""}
+    disabled={!snapshot}
+    onChange={event => {
+      setKpiEntries(previous => ({
+        ...previous,
+        [metric.key]: {
+          mode: "CORRECTED",
+          actual: event.target.value,
+          comment: previous[metric.key]?.comment ?? ""
+        }
+      }));
+
+      setValidationStatus("");
+    }}
+  />
+
+  <label htmlFor={`knote_${metric.key}`}>
+    Причина коригування
+  </label>
+
+  <textarea
+    id={`knote_${metric.key}`}
+    rows={2}
+    maxLength={500}
+    value={kpiEntries[metric.key]?.comment ?? ""}
+    placeholder="Опишіть причину відхилення"
+    disabled={!snapshot}
+    onChange={event => {
+      setKpiEntries(previous => ({
+        ...previous,
+        [metric.key]: {
+          mode: "CORRECTED",
+          actual: previous[metric.key]?.actual ?? "",
+          comment: event.target.value
+        }
+      }));
+
+      setValidationStatus("");
+    }}
+  />
+</div>
+
             </div>
           ))}
 
           <div className={styles.banner}>ЗВІРКА РАХУНКІВ ЗА ЗМІНУ</div>
           <p className={styles.note}>
-            Показники нижче надходять із ProFin OS. Розрахунковий залишок
-            повертає тільки сервер Apps Script.
+          Надходження, виплати та перекази отримано з фінансового ядра.
+          Підсумковий залишок не обчислюємо в браузері.
+          Початкові залишки підтверджує власник.
           </p>
 
-          <div className={styles.card} hidden>
-            <strong>Початкові залишки для першого офіційного звіту</strong>
-            <p className={styles.note}>
-              Не беріть їх із тестових записів. Підтвердити стартові залишки
-              може тільки власник.
-            </p>
-            <div className={styles.initialGrid}>
-              {ACCOUNTS.map(account => (
-                <div key={account.key}>
-                  <label htmlFor={`initial_${account.key}`}>{account.name}</label>
-                  <input
-                    id={`initial_${account.key}`}
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Введіть значення"
-                    disabled
-                  />
-                </div>
-              ))}
-            </div>
-            <label className={styles.confirmLine}>
-              <input type="checkbox" disabled />
-              Підтверджую початкові залишки всіх чотирьох рахунків
-            </label>
-          </div>
+          
+<div
+  className={styles.card}
+  hidden={!snapshot?.initialBalancesRequired}
+>
+  <strong>
+    Початкові залишки для першого офіційного звіту
+  </strong>
+
+  <p className={styles.note}>
+    Адміністратор і власник можуть ввести залишки
+    чотирьох рахунків. Офіційне підтвердження
+    виконує власник.
+  </p>
+
+  <div className={styles.initialGrid}>
+    {ACCOUNTS.map(account => (
+      <div key={account.key}>
+        <label htmlFor={`initial_${account.key}`}>
+          {account.name}
+        </label>
+
+        <input
+          id={`initial_${account.key}`}
+          type="number"
+          step="0.01"
+          min="0"
+          placeholder="Введіть початковий залишок"
+          value={openingEntries[account.name] ?? ""}
+          disabled={!snapshot || checking}
+          onChange={event => {
+            setOpeningEntries(previous => ({
+              ...previous,
+              [account.name]: event.target.value
+            }));
+
+            setConfirmInitialBalances(false);
+            setValidationStatus("");
+          }}
+        />
+      </div>
+    ))}
+  </div>
+
+  <label className={styles.confirmLine}>
+    <input
+      type="checkbox"
+      checked={confirmInitialBalances}
+      disabled={
+        !snapshot ||
+        checking ||
+        !ownerVerified
+      }
+      onChange={event => {
+        setConfirmInitialBalances(
+          event.target.checked
+        );
+
+        setValidationStatus("");
+      }}
+    />
+
+    Підтверджую початкові залишки
+    всіх чотирьох рахунків
+  </label>
+
+  {!ownerVerified && (
+    <p className={styles.note} role="status">
+      Початкові залишки можна заповнити,
+      але для офіційного затвердження
+      потрібна роль OWNER.
+      Введені значення поки не зберігаються
+      на сервері.
+    </p>
+  )}
+</div>
+
 
           {ACCOUNTS.map(account => (
             <div className={`${styles.card} ${styles.account}`} key={account.key}>
@@ -291,51 +967,107 @@ function ShiftClosingForm({
                 <span className={styles.statusPill}>Не перевірено</span>
               </div>
               <div className={styles.accountBalanceRow}>
-                {[
-                  "На початок",
-                  "Надходження",
-                  "Виплати"
-                ].map(label => (
-                  <div key={label}>
-                    <div className={styles.accountSmallLabel}>{label}</div>
-                    <div className={styles.accountSmallValue}>—</div>
-                  </div>
-                ))}
+                {([
+               { label: "На початок", field: "opening" },
+               { label: "Надходження", field: "receipts" },
+               { label: "Виплати", field: "payouts" }
+               ] as const).map(item => (
+               <div key={item.field}>
+               <div className={styles.accountSmallLabel}>
+               {item.label}
+               </div>
+              <div className={styles.accountSmallValue}>
+  {item.field === "opening" &&
+  snapshot?.initialBalancesRequired
+    ? (() => {
+        const value = parseOpeningBalance(
+          openingEntries[account.name]
+        );
+
+        return value === null
+          ? "—"
+          : formatValue(value, "UAH");
+      })()
+    : accountValue(
+        snapshot,
+        account.name,
+        item.field
+      )}
+</div>
+           </div>
+           ))}
               </div>
-              <p className={styles.note}>Перекази: +— / −—</p>
+              <p className={styles.note}>
+              Перекази: +
+              {accountValue(snapshot, account.name, "transferIn")}
+              {" / −"}
+              {accountValue(snapshot, account.name, "transferOut")}
+              </p>
               <div className={styles.accountExpected}>
                 <span>Залишок за ProFin</span>
                 <strong>—</strong>
               </div>
-              <div className={styles.accountEntry}>
-                <label htmlFor={`actual_${account.key}`}>
-                  Фактичний залишок на кінець зміни, грн
-                </label>
-                <input
-                  id={`actual_${account.key}`}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="Введіть значення"
-                  disabled
-                />
-                <label className={styles.confirmLine}>
-                  <input type="checkbox" disabled />
-                  Підтверджую збіг із ProFin
-                </label>
-                <div className={styles.correction} hidden>
-                  <label htmlFor={`anote_${account.key}`}>
-                    Коментар / причина коригування
-                  </label>
-                  <textarea
-                    id={`anote_${account.key}`}
-                    rows={2}
-                    maxLength={500}
-                    placeholder="Причина розбіжності"
-                    disabled
-                  />
-                </div>
-              </div>
+              
+<div className={styles.accountEntry}>
+  <label htmlFor={`actual_${account.key}`}>
+    Фактичний залишок на кінець зміни, грн
+  </label>
+
+  <input
+    id={`actual_${account.key}`}
+    type="number"
+    min={
+      account.key === "cash" ||
+      account.key === "safe"
+        ? "0"
+        : undefined
+    }
+    step="0.01"
+    value={accountEntries[account.name]?.actualEnd ?? ""}
+    disabled={!snapshot || checking}
+    placeholder="Введіть значення"
+    onChange={event => {
+      setAccountEntries(previous => ({
+        ...previous,
+        [account.name]: {
+          actualEnd: event.target.value,
+          comment: previous[account.name]?.comment ?? ""
+        }
+      }));
+
+      setValidationStatus("");
+    }}
+  />
+
+  <label htmlFor={`anote_${account.key}`}>
+    Коментар / причина розбіжності
+  </label>
+
+  <textarea
+    id={`anote_${account.key}`}
+    rows={2}
+    maxLength={500}
+    value={accountEntries[account.name]?.comment ?? ""}
+    placeholder="За потреби опишіть розбіжність"
+    disabled={!snapshot || checking}
+    onChange={event => {
+      setAccountEntries(previous => ({
+        ...previous,
+        [account.name]: {
+          actualEnd: previous[account.name]?.actualEnd ?? "",
+          comment: event.target.value
+        }
+      }));
+
+      setValidationStatus("");
+    }}
+  />
+
+  <p className={styles.note}>
+    Збіг та розбіжність перевірить фінансовий сервер.
+  </p>
+</div>
+
             </div>
           ))}
 
@@ -357,11 +1089,48 @@ function ShiftClosingForm({
               onChange={event => setComment(event.target.value)}
             />
             <div className={styles.controlbar}>
-              <button type="button" className={styles.btnDark} disabled>
-                Перевірити звіт
-              </button>
-              <span className={styles.conclusion} />
-            </div>
+  <button
+    type="button"
+    className={styles.btnDark}
+    disabled={!snapshot || checking}
+    onClick={checkFormLocally}
+  >
+    Перевірити заповнення
+  </button>
+
+  {draftReady && !submitReady && !officialReportSent && (
+  <ShiftGoogleValidation
+    key={snapshot?.revision}
+    date={shiftDate}
+    mode="VALIDATE"
+    getDraft={buildReportDraft}
+    onResult={result => {
+      const passed =
+        result.http === 200 &&
+        result.code === "SHIFT_PREVALIDATION_OK" &&
+        result.decision === "READ_ONLY_VALIDATION" &&
+        result.draftFingerprint === draftFingerprint;
+
+      setVerifiedDraftFingerprint(
+        passed ? result.draftFingerprint : null
+      );
+
+      setValidationStatus(
+        passed
+          ? "Серверна перевірка успішна. Можна подавати звіт."
+          : `Перевірку відхилено: ${result.code}.`
+      );
+    }}
+  />
+)}
+
+  <span
+    className={styles.conclusion}
+    role="status"
+  >
+    {validationStatus}
+  </span>
+</div>
             <p className={styles.note}>
               За наявності коригувань потрібна причина. Підсумковий статус
               і всі різниці визначає сервер. Перевірка не записує звіт.
@@ -369,14 +1138,50 @@ function ShiftClosingForm({
           </section>
         </div>
 
-        <footer className={styles.foot}>
-          <span className={styles.note}>
-            7 показників · 4 рахунки · єдиний серверний запис
-          </span>
-          <button type="button" className={styles.btnGreen} disabled>
-            Подати звіт
-          </button>
-        </footer>
+        
+<footer className={styles.foot}>
+  <span className={styles.note}>
+    7 показників · 4 рахунки · єдиний серверний запис
+  </span>
+
+  {submitReady ? (
+    <ShiftGoogleValidation
+      key={`submit-${snapshot?.revision}`}
+      date={shiftDate}
+      mode="SUBMIT"
+      buttonClassName={styles.btnGreen}
+      getDraft={buildReportDraft}
+      onResult={result => {
+        if (
+          result.http === 200 &&
+          result.code === "SHIFT_REPORT_SUBMITTED" &&
+          result.decision === "SUBMITTED"
+        ) {
+          setOfficialReportSent(true);
+
+          setValidationStatus(
+            `Звіт подано: ${result.reportId ?? ""}.`
+          );
+        } else {
+          setValidationStatus(
+            `Подання відхилено: ${result.code} (HTTP ${result.http}).`
+          );
+        }
+      }}
+    />
+  ) : (
+    <button
+      type="button"
+      className={styles.btnGreen}
+      disabled
+    >
+      {officialReportSent
+        ? "Звіт подано"
+        : "Подати звіт"}
+    </button>
+  )}
+</footer>
+
       </div>
     </div>
   );

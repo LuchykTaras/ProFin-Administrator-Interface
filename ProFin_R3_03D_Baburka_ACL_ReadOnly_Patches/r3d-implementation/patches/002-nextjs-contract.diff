@@ -1,0 +1,7 @@
+--- a/lib/contracts/apps-script-adapter.ts
++++ b/lib/contracts/apps-script-adapter.ts
+@@ -1,2 +1,3 @@
+   | "closeShift"
+-  | "getShiftReportsWeb";
++  | "getShiftReportsWeb"
++  | "getShiftFinancialSnapshot";

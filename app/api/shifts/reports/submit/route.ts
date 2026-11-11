@@ -1,3 +1,4 @@
+
 import {
   parseOfficialShiftSubmission,
   ShiftContractError
@@ -9,197 +10,322 @@ import {
   getRequestId
 } from "@/lib/server/api";
 
-import {
-  AppError
-} from "@/lib/server/errors";
-
-import {
-  assertPermission
-} from "@/lib/server/rbac";
-
-import {
-  requireSessionContext
-} from "@/lib/server/session";
+import { AppError } from "@/lib/server/errors";
+import { assertPermission } from "@/lib/server/rbac";
+import { requireSessionContext } from "@/lib/server/session";
 
 import type {
   SessionContext
 } from "@/lib/server/session";
 
+import {
+  requireR3BabVerifiedIdentity
+} from "@/lib/server/r3-bab-identity";
+
+import {
+  requireShiftGoogleToken
+} from "@/lib/server/r3-shift-google-proof";
+
+import {
+  callAppsScriptAdapter
+} from "@/lib/server/apps-script-transport";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const CONTRACT_VERSION =
-  "PROFIN_SHIFT_R3_00_ISOLATED_V1";
-
-function assertOfficialReportAccess(
-  context: SessionContext
-): void {
-  assertPermission(
-    context,
-    "shift:close"
-  );
-
-  if (
-    context.role !== "OWNER" &&
-    context.role !== "SENIOR_ADMIN"
-  ) {
-    throw new AppError({
-      status: 403,
-      code: "SHIFT_REPORT_ROLE_FORBIDDEN",
-      userMessage:
-        "Недостатньо прав для подання звіту."
-    });
-  }
+function reject(
+  status: number,
+  code: string,
+  userMessage: string
+): never {
+  throw new AppError({
+    status,
+    code,
+    userMessage,
+    retryable: false
+  });
 }
 
-function noStore(
-  response: Response
-): Response {
+function noStore<T extends Response>(
+  response: T
+): T {
   response.headers.set(
     "Cache-Control",
     "private, no-store"
   );
 
+  response.headers.set(
+    "Referrer-Policy",
+    "no-referrer"
+  );
+
   return response;
 }
 
-export async function GET(
-  request: Request
-) {
-  const requestId =
-    getRequestId(request);
+function assertAccess(
+  context: SessionContext
+): void {
+  assertPermission(context, "shift:close");
+
+  if (
+    context.role !== "OWNER" &&
+    context.role !== "SENIOR_ADMIN"
+  ) {
+    reject(
+      403,
+      "SHIFT_REPORT_ROLE_FORBIDDEN",
+      "Недостатньо прав для подання."
+    );
+  }
+}
+
+export async function GET(request: Request) {
+  const requestId = getRequestId(request);
 
   try {
-    const context =
-      await requireSessionContext();
+    const context = await requireSessionContext();
 
-    assertOfficialReportAccess(
-      context
-    );
+    assertAccess(context);
+
+    const enabled =
+      process.env.PROFIN_SHIFT_SUBMIT_ENABLED === "true";
 
     return noStore(
       apiOk(
         requestId,
         {
-          version: CONTRACT_VERSION,
-          status: "BLOCKED",
-          submissionEnabled: false,
-          snapshotVerified: false,
-          financialWriteEnabled: false,
+          version: "PROFIN_SHIFT_R3_05_04_GATEWAY_V1",
+          status: enabled
+            ? "SERVER_GATE_ENABLED"
+            : "BLOCKED",
+          submissionEnabled: enabled,
+          financialWriteEnabled: null,
           legacyCloseShiftUnchanged: true
         },
-        "Новий маршрут R3 доступний. " +
-        "Офіційне подання очікує перевірки контракту.",
+        "Стан шлюзу подання.",
         "SHIFT_R3_ROUTE_READY"
       )
     );
   } catch (error) {
-    return noStore(
-      apiFromError(
-        requestId,
-        error
-      )
-    );
+    return noStore(apiFromError(requestId, error));
   }
 }
 
-export async function POST(
-  request: Request
-) {
-  const requestId =
-    getRequestId(request);
+type WriterResponse = {
+  result?: {
+    ok?: boolean;
+    reportId?: string;
+    submittedAt?: string;
+    status?: string;
+    writesPerformed?: boolean;
+    idempotencyReplayed?: boolean;
+    archiveRows?: {
+      reports?: number;
+      details?: number;
+      kpi?: number;
+    };
+  };
+};
+
+export async function POST(request: Request) {
+  const requestId = getRequestId(request);
 
   try {
-    const context =
-      await requireSessionContext();
+    const context = await requireSessionContext();
 
-    assertOfficialReportAccess(
-      context
-    );
+    assertAccess(context);
 
-    const contentType =
-      request.headers.get("content-type") ?? "";
+    const url = new URL(request.url);
 
     if (
-      !/^application\/json(?:\s*;|$)/i.test(contentType)
+      url.search ||
+      request.headers.get("origin") !== url.origin
     ) {
-      throw new AppError({
-        status: 415,
-        code: "SHIFT_R3_JSON_REQUIRED",
-        userMessage:
-          "Потрібен JSON-запит."
-      });
+      reject(
+        403,
+        "SHIFT_SUBMIT_CSRF_DENIED",
+        "Недозволене джерело запиту."
+      );
+    }
+
+    const contentType = request.headers
+      .get("content-type")
+      ?.split(";")[0]
+      ?.trim()
+      .toLowerCase();
+
+    if (contentType !== "application/json") {
+      reject(
+        415,
+        "SHIFT_SUBMIT_JSON_REQUIRED",
+        "Потрібен JSON-запит."
+      );
     }
 
     const idempotencyKey =
-      request.headers.get("idempotency-key");
+      request.headers.get("idempotency-key") || "";
 
     if (
-      !idempotencyKey ||
-      !/^[a-zA-Z0-9_-]{16,128}$/.test(
-        idempotencyKey
-      )
+      !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i
+        .test(idempotencyKey)
     ) {
-      throw new AppError({
-        status: 400,
-        code: "SHIFT_R3_IDEMPOTENCY_KEY_REQUIRED",
-        userMessage:
-          "Відсутній коректний ключ ідемпотентності."
-      });
+      reject(
+        400,
+        "SHIFT_SUBMIT_IDEMPOTENCY_INVALID",
+        "Некоректний ключ повторного запиту."
+      );
     }
 
-    const rawBody = await request.text();
+    const raw = await request.text();
 
-    if (
-      rawBody.length === 0 ||
-      rawBody.length > 32768
-    ) {
-      throw new AppError({
-        status: 400,
-        code: "SHIFT_R3_INVALID_BODY_SIZE",
-        userMessage:
-          "Некоректний розмір запиту."
-      });
+    if (!raw || raw.length > 32768) {
+      reject(
+        400,
+        "SHIFT_SUBMIT_BODY_SIZE",
+        "Некоректний розмір звіту."
+      );
     }
 
-    let input: unknown;
+    let unknownBody: unknown;
 
     try {
-      input = JSON.parse(rawBody);
+      unknownBody = JSON.parse(raw);
     } catch {
-      throw new AppError({
-        status: 400,
-        code: "SHIFT_R3_INVALID_JSON",
-        userMessage:
-          "Некоректний JSON."
-      });
+      reject(
+        400,
+        "SHIFT_SUBMIT_INVALID_JSON",
+        "Некоректний JSON."
+      );
     }
 
-    const submission =
-      parseOfficialShiftSubmission(input);
+    const report =
+      parseOfficialShiftSubmission(unknownBody);
 
     if (
-      Number(submission.date.slice(0, 4)) !==
+      Number(report.date.slice(0, 4)) !==
       context.activeYear
     ) {
-      throw new AppError({
-        status: 409,
-        code: "SHIFT_R3_YEAR_MISMATCH",
-        userMessage:
-          "Дата не належить активному обліковому року."
-      });
+      reject(
+        409,
+        "SHIFT_SUBMIT_YEAR_MISMATCH",
+        "Дата не відповідає обліковому року."
+      );
     }
 
-    throw new AppError({
-      status: 409,
-      code: "SHIFT_R3_SUBMIT_NOT_VERIFIED",
-      userMessage:
-        "Офіційне подання ще не активовано. " +
-        "Необхідна перевірка 7 KPI, " +
-        "4 рахунків, revision та архівування.",
-      retryable: false
+    if (
+      process.env.PROFIN_SHIFT_SUBMIT_ENABLED !==
+      "true"
+    ) {
+      reject(
+        403,
+        "SHIFT_SUBMIT_DISABLED",
+        "Запис фінансових звітів ще не активовано."
+      );
+    }
+
+    if (
+      process.env.PROFIN_R3_BAB_ACL_BRIDGE_ENABLED !==
+        "true" ||
+      process.env.PROFIN_R3_BAB_FINANCIAL_READ_ENABLED !==
+        "true"
+    ) {
+      reject(
+        403,
+        "SHIFT_SUBMIT_BRIDGE_DISABLED",
+        "Фінансовий шлюз недоступний."
+      );
+    }
+
+    const identity =
+      await requireR3BabVerifiedIdentity(
+        context,
+        report.date
+      );
+
+    const proof = await requireShiftGoogleToken(
+      request,
+      context,
+      report.date,
+      identity
+    );
+
+    if (
+      proof.tokenVerifiedForRequest !== true ||
+      proof.googleSubjectMatched !== true
+    ) {
+      reject(
+        403,
+        "SHIFT_SUBMIT_GOOGLE_REQUIRED",
+        "Google Identity не підтверджено."
+      );
+    }
+
+    const adapter = await callAppsScriptAdapter<
+      {
+        report: typeof report;
+        identity: typeof identity;
+      },
+      WriterResponse
+    >({
+      requestId,
+      command: "submitShiftReport",
+      context,
+      idempotencyKey,
+      operationDate: report.date,
+      payload: {
+        report,
+        identity
+      }
     });
-    } catch (error) {
+
+    const result = adapter.data?.result;
+
+    const expectedId =
+      `SHIFT-${report.date.replace(/-/g, "")}`;
+
+    if (
+      !result ||
+      result.ok !== true ||
+      result.reportId !== expectedId ||
+      !result.submittedAt ||
+      !["Подано", "Потребує уваги"].includes(
+        result.status || ""
+      ) ||
+      result.archiveRows?.reports !== 1 ||
+      result.archiveRows?.details !== 4 ||
+      result.archiveRows?.kpi !== 7 ||
+      !(
+        result.writesPerformed === true ||
+        result.idempotencyReplayed === true
+      )
+    ) {
+      reject(
+        502,
+        "SHIFT_SUBMIT_UNVERIFIED_ARCHIVE",
+        "Не підтверджено запис в архіві. " +
+        "Не повторюйте з іншим ключем."
+      );
+    }
+
+    return noStore(
+      apiOk(
+        requestId,
+        {
+          decision: "SUBMITTED",
+          reportId: result.reportId,
+          submittedAt: result.submittedAt,
+          status: result.status,
+          idempotencyReplayed:
+            result.idempotencyReplayed === true,
+          archiveVerified: true,
+          writePerformed:
+            result.writesPerformed === true
+        },
+        "Звіт записано до архіву.",
+        "SHIFT_REPORT_SUBMITTED"
+      )
+    );
+  } catch (error) {
     const normalizedError =
       error instanceof ShiftContractError
         ? new AppError({

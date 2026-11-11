@@ -28,7 +28,9 @@ export type AppsScriptAdapterCommand =
   | "returnTransfer"
   | "cancelOperation"
   | "closeShift"
-  | "getShiftReportsWeb";
+  | "getShiftReportsWeb"
+  | "getShiftFinancialSnapshot"
+  | "submitShiftReport";
 
 
 export type AppsScriptAdapterAuth = {

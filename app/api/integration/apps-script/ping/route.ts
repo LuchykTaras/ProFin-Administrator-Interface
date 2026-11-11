@@ -63,9 +63,12 @@ export async function GET(
     return apiOk(
       requestId,
 
-      {
+            {
         transport:
           "OK",
+
+        adapterBuildId:
+          adapterResponse.adapterBuildId ?? null,
 
         adapter:
           adapterResponse.data
