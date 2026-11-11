@@ -709,28 +709,7 @@ setShiftDate(event.target.value);
                 {readStatus}
               </span>
             </div>
-            <div className={styles.warn} role="status">
-  {snapshot ? (
-    <>
-      R3-04 · Захищені фінансові дані отримано.
-      {" "}
-      Revision:
-      {" "}
-      <code title={snapshot.revision}>
-        {snapshot.revision.slice(0, 12)}…
-      </code>
-      {snapshot.initialBalancesRequired &&
-        " Початкові залишки потребують підтвердження власника."}
-      {" "}
-      Подання звіту заблоковано.
-    </>
-  ) : (
-    <>
-      R3-04 · Фінансові дані ще не завантажені.
-      Підтвердження та подання звіту заблоковані.
-    </>
-  )}
-</div>
+      
           </div>
         </section>
 
@@ -1151,7 +1130,7 @@ setShiftDate(event.target.value);
       mode="SUBMIT"
       buttonClassName={styles.btnGreen}
       getDraft={buildReportDraft}
-      onResult={result => {
+            onResult={result => {
         if (
           result.http === 200 &&
           result.code === "SHIFT_REPORT_SUBMITTED" &&
@@ -1161,6 +1140,16 @@ setShiftDate(event.target.value);
 
           setValidationStatus(
             `Звіт подано: ${result.reportId ?? ""}.`
+          );
+        } else if (
+          result.code === "SHIFT_SUBMISSION_OUTCOME_UNKNOWN" ||
+          result.http >= 500
+        ) {
+          setValidationStatus(
+            "Запис міг відбутися, але підтвердження " +
+            "від сервера не отримано. " +
+            "Не подавайте звіт повторно. " +
+            "Потрібна звірка архіву."
           );
         } else {
           setValidationStatus(

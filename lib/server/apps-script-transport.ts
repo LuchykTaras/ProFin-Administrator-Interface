@@ -309,7 +309,8 @@ function commandRequiresIdempotency(
     "cancelOperation",
     "requestCorrection",
     "closeShift",
-    "submitShiftReport"
+    "submitShiftReport",
+    "reconcileShiftReport"
   ].includes(
     String(
       command

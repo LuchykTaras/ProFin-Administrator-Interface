@@ -30,6 +30,7 @@ export type AppsScriptAdapterCommand =
   | "closeShift"
   | "getShiftReportsWeb"
   | "getShiftFinancialSnapshot"
+  | "reconcileShiftReport"
   | "submitShiftReport";
 
 

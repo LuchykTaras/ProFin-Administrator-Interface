@@ -30,6 +30,10 @@ import {
   callAppsScriptAdapter
 } from "@/lib/server/apps-script-transport";
 
+import {
+  isShiftReportIdForDate
+} from "@/lib/contracts/shift-report-ids";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -129,6 +133,8 @@ type WriterResponse = {
 
 export async function POST(request: Request) {
   const requestId = getRequestId(request);
+
+  let writerInvoked = false;
 
   try {
     const context = await requireSessionContext();
@@ -260,6 +266,8 @@ export async function POST(request: Request) {
       );
     }
 
+    writerInvoked = true;
+
     const adapter = await callAppsScriptAdapter<
       {
         report: typeof report;
@@ -280,13 +288,13 @@ export async function POST(request: Request) {
 
     const result = adapter.data?.result;
 
-    const expectedId =
-      `SHIFT-${report.date.replace(/-/g, "")}`;
-
     if (
       !result ||
       result.ok !== true ||
-      result.reportId !== expectedId ||
+      !isShiftReportIdForDate(
+  result.reportId,
+  report.date
+) ||
       !result.submittedAt ||
       !["Подано", "Потребує уваги"].includes(
         result.status || ""
@@ -325,6 +333,7 @@ export async function POST(request: Request) {
         "SHIFT_REPORT_SUBMITTED"
       )
     );
+  
   } catch (error) {
     const normalizedError =
       error instanceof ShiftContractError
@@ -336,11 +345,58 @@ export async function POST(request: Request) {
           })
         : error;
 
-    return noStore(
-      apiFromError(
-        requestId,
-        normalizedError
-      )
+    if (
+      normalizedError instanceof AppError &&
+      normalizedError.code === "APPS_SCRIPT_INTERNAL_ERROR" &&
+      normalizedError.message.trim() === "PFSW_WRITE_DISABLED"
+    ) {
+      return noStore(
+        apiFromError(
+          requestId,
+          new AppError({
+            status: 403,
+            code: "SHIFT_WRITE_DISABLED",
+            userMessage:
+              "Запис звітів вимкнено в Apps Script.",
+            retryable: false
+          })
+        )
+      );
+    }
+
+    const failureResponse = apiFromError(
+      requestId,
+      normalizedError
     );
+
+    if (
+      writerInvoked &&
+      failureResponse.status >= 500
+    ) {
+      console.error(
+        "[SHIFT_SUBMIT_RECONCILIATION_REQUIRED]",
+        {
+          requestId,
+          upstreamStatus: failureResponse.status
+        }
+      );
+
+      return noStore(
+        apiFromError(
+          requestId,
+          new AppError({
+            status: 409,
+            code: "SHIFT_SUBMISSION_OUTCOME_UNKNOWN",
+            userMessage:
+              "Фінансовий запис міг завершитися. " +
+              "Не подавайте звіт повторно до звірки архіву.",
+            retryable: false
+          })
+        )
+      );
+    }
+
+    return noStore(failureResponse);
   }
 }
+

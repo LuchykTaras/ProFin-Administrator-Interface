@@ -90,20 +90,68 @@ function statusTone(status: string): string {
   return styles.unknown;
 }
 
+function reportVersion(
+  report: ShiftReport
+): number | null {
+  const base =
+    `SHIFT-${report.shiftDate.replace(/-/g, "")}`;
+
+  if (report.shiftId === base) return 1;
+
+  const match = new RegExp(
+    `^${base}-V([0-9]{4})$`
+  ).exec(report.shiftId);
+
+  if (!match) return null;
+
+  const value = Number(match[1]);
+  return value >= 2 ? value : null;
+}
+
+function versionLabel(report: ShiftReport): string {
+  const version = reportVersion(report);
+
+  return version === null
+    ? "Архівний звіт"
+    : `Версія ${String(version).padStart(4, "0")}`;
+}
+
+function isLatestVersion(
+  report: ShiftReport,
+  reports: ShiftReport[]
+): boolean {
+  const version = reportVersion(report);
+
+  if (version === null) return false;
+
+  return !reports.some(other =>
+    other.shiftDate === report.shiftDate &&
+    (reportVersion(other) ?? 0) > version
+  );
+}
+
 function ReportDetails({
   report,
-  details
+  details,
+  reports
 }: {
   report: ShiftReport;
   details: ShiftReportsData["details"];
+  reports: ShiftReport[];
 }) {
   return (
     <section className={styles.details}>
       <div className={styles.heading}>
         <div>
           <h3>Звіт {report.shiftId}</h3>
-          <p>
-            Дата зміни: {report.shiftDate}
+<p>
+  {versionLabel(report)}
+  {isLatestVersion(report, reports)
+    ? " · Актуальна версія"
+    : " · Архівна версія"}
+</p>
+<p>
+  Дата зміни: {report.shiftDate}
             {" · "}
             Адміністратор: {report.administrator || "—"}
           </p>
@@ -134,29 +182,13 @@ function ReportDetails({
           <strong>{money(report.cashDifference)}</strong>
         </div>
         <div>
-          <span>Візити ProFin (оцінка)</span>
-          <strong>{report.visits ?? "—"}</strong>
-        </div>
-        <div>
-          <span>Візити Helsi</span>
-          <strong>{report.helsiVisits ?? "—"}</strong>
-        </div>
-        <div>
-          <span>Нові клієнти ProFin</span>
-          <strong>{report.newClients ?? "—"}</strong>
-        </div>
-        <div>
-          <span>Вакцинні події</span>
-          <strong>{report.vaccineEvents ?? "—"}</strong>
-        </div>
-        <div>
-          <span>Операції для перевірки</span>
-          <strong>{report.problemOperations ?? "—"}</strong>
-        </div>
-        <div>
-          <span>Розбіжності Helsi (категорії)</span>
-          <strong>{report.helsiMismatchCategories ?? "—"}</strong>
-        </div>
+  <span>Нові клієнти ProFin</span>
+  <strong>{report.newClients ?? "—"}</strong>
+</div>
+<div>
+  <span>Операції для перевірки</span>
+  <strong>{report.problemOperations ?? "—"}</strong>
+</div>
       </div>
 
       <p>
@@ -172,7 +204,7 @@ function ReportDetails({
         <p><strong>Коментар:</strong> {report.comment}</p>
       )}
 
-      <h4>Деталізація рахунків і Helsi</h4>
+      <h4>Деталізація рахунків</h4>
 
       {details.length === 0 ? (
         <p>Деталізацію для цього звіту не знайдено.</p>
@@ -224,6 +256,10 @@ export function ShiftReports({
   const [selectedId, setSelectedId] = useState<string | null>(
     null
   );
+
+const [focusedDate, setFocusedDate] =
+  useState<string | null>(null);
+
   const [data, setData] = useState<ShiftReportsData | null>(
     null
   );
@@ -239,6 +275,7 @@ export function ShiftReports({
         : 1
     );
     setSelectedId(null);
+    setFocusedDate(null);
     setData(null);
     setError("");
   }, [activeYear, contextKey]);
@@ -322,6 +359,7 @@ export function ShiftReports({
     setYear(nextYear);
     setMonth(nextMonth);
     setSelectedId(null);
+    setFocusedDate(null);
   };
 
   const reportsByDay = new Map<string, ShiftReport[]>();
@@ -332,7 +370,18 @@ export function ShiftReports({
     reportsByDay.set(report.shiftDate, items);
   }
 
-  return (
+  const visibleReports = (data?.reports ?? [])
+    .filter(report =>
+      !focusedDate || report.shiftDate === focusedDate
+    )
+    .slice()
+    .sort((a, b) =>
+      a.shiftDate.localeCompare(b.shiftDate) ||
+      (reportVersion(a) ?? 0) -
+        (reportVersion(b) ?? 0)
+    );
+
+    return (
     <section className={styles.page}>
       <div className={styles.heading}>
         <div>
@@ -489,13 +538,16 @@ export function ShiftReports({
                               : styles.matched
                         }`}
                         onClick={() => {
-                          if (items.length === 1) {
-                            setSelectedId(items[0].shiftId);
-                          } else if (items.length > 1) {
-                            setSelectedId(null);
-                          }
-                        }}
-                        disabled={items.length === 0}
+  setFocusedDate(date);
+
+  setSelectedId(
+    items.length === 1
+      ? items[0].shiftId
+      : null
+  );
+}}
+aria-pressed={focusedDate === date}
+disabled={items.length === 0}
                         title={
                           items.length
                             ? `${items.length} звіт(ів)`
@@ -512,31 +564,66 @@ export function ShiftReports({
                 )}
               </div>
 
-              <h3>Звіти за місяць</h3>
-              <div className={styles.reportList}>
-                {data.reports.length === 0 ? (
-                  <p>За цей місяць збережених звітів немає.</p>
-                ) : data.reports.map(report => (
-                  <button
-                    type="button"
-                    key={report.shiftId}
-                    className={styles.reportItem}
-                    onClick={() => setSelectedId(report.shiftId)}
-                  >
-                    <CalendarDays size={17} />
-                    <span>
-                      {report.shiftDate} — {report.administrator}
-                    </span>
-                    <span
-                      className={`${styles.status} ${
-                        statusTone(report.status)
-                      }`}
-                    >
-                      {report.status}
-                    </span>
-                  </button>
-                ))}
-              </div>
+              
+<div className={styles.heading}>
+  <h3>
+    {focusedDate
+      ? `Версії звітів за ${focusedDate}`
+      : "Звіти за місяць"}
+  </h3>
+
+  {focusedDate && (
+    <button
+      type="button"
+      className={styles.button}
+      onClick={() => {
+        setFocusedDate(null);
+        setSelectedId(null);
+      }}
+    >
+      Показати всі дати
+    </button>
+  )}
+</div>
+
+<div className={styles.reportList}>
+  {visibleReports.length === 0 ? (
+    <p>Збережених звітів не знайдено.</p>
+  ) : (
+    visibleReports.map(report => (
+      <button
+        type="button"
+        key={report.shiftId}
+        className={styles.reportItem}
+        aria-pressed={selectedId === report.shiftId}
+        title={report.shiftId}
+        onClick={() => setSelectedId(report.shiftId)}
+      >
+        <CalendarDays size={17} />
+
+        <span>
+          {report.shiftDate}
+          {" · "}
+          {versionLabel(report)}
+          {isLatestVersion(report, data.reports)
+            ? " · Актуальна"
+            : ""}
+          {" · "}
+          {report.administrator || "—"}
+        </span>
+
+        <span
+          className={`${styles.status} ${
+            statusTone(report.status)
+          }`}
+        >
+          {report.status || "Без статусу"}
+        </span>
+      </button>
+    ))
+  )}
+</div>
+
             </>
           ) : (
             <div className={styles.yearGrid}>
@@ -560,13 +647,14 @@ export function ShiftReports({
           )}
 
           {data.selectedReport && (
-            <ReportDetails
-              report={data.selectedReport}
-              details={data.details}
-            />
+          <ReportDetails
+          report={data.selectedReport}
+          details={data.details}
+          reports={data.reports}
+          />
           )}
         </>
-      )}
+            )}
     </section>
   );
 }

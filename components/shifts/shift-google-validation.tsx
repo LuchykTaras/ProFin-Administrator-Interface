@@ -114,6 +114,11 @@ const busyRef = useRef(false);
 
 const [submitted, setSubmitted] = useState(false);
 
+const [
+  needsReconciliation,
+  setNeedsReconciliation
+] = useState(false);
+
 const attemptRef = useRef<{
   body: string;
   key: string;
@@ -126,14 +131,30 @@ useEffect(() => {
 }, [getDraft, onResult, date]);
 
   useEffect(() => {
-    setChallenge(null);
-    setStatus("");
-  }, [date]);
+  setChallenge(null);
+  setStatus("");
+
+  if (mode !== "SUBMIT") {
+    setNeedsReconciliation(false);
+    return;
+  }
+
+  try {
+    const prefix = `profin-shift-pending:${date}:`;
+
+    setNeedsReconciliation(
+      Object.keys(window.sessionStorage)
+        .some(key => key.startsWith(prefix))
+    );
+  } catch {
+    setNeedsReconciliation(true);
+  }
+}, [date, mode]);
 
   const start = useCallback(async () => {
   if (busyRef.current || !date || submitted) {
-    return;
-  }
+  return;
+}
 
   if (
     mode === "SUBMIT" &&
@@ -198,7 +219,7 @@ useEffect(() => {
       busyRef.current = false;
       setBusy(false);
     }
-    }, [date, mode, submitted]);
+      }, [date, mode, submitted, needsReconciliation]);
 
   const submit = useCallback(async (
     credential: string,
@@ -211,6 +232,9 @@ useEffect(() => {
     busyRef.current = true;
     setBusy(true);
     setStatus("Сервер перевіряє Google Identity...");
+
+    let requestDispatched = false;
+    let pendingKey: string | null = null;
 
     try {
       if (
@@ -303,6 +327,26 @@ useEffect(() => {
         };
       }
 
+      if (mode === "SUBMIT") {
+  pendingKey =
+    `profin-shift-pending:${draft.date}:${draft.revision}`;
+
+  if (window.sessionStorage.getItem(pendingKey)) {
+    setNeedsReconciliation(true);
+
+    throw new Error(
+      "SHIFT_SUBMISSION_PREVIOUS_ATTEMPT_UNRESOLVED"
+    );
+  }
+
+  window.sessionStorage.setItem(
+    pendingKey,
+    idempotencyKey ?? ""
+  );
+}
+
+requestDispatched = true;
+
       const response = await fetch(
         mode === "SUBMIT"
           ? "/api/shifts/reports/submit"
@@ -341,9 +385,25 @@ useEffect(() => {
               )
         );
 
-      if (mode === "SUBMIT" && verified) {
-        setSubmitted(true);
-      }
+      if (mode === "SUBMIT") {
+  if (verified) {
+    if (pendingKey) {
+      window.sessionStorage.removeItem(pendingKey);
+    }
+
+    setSubmitted(true);
+  } else if (
+    result.code === "SHIFT_SUBMIT_DISABLED" ||
+    result.code === "SHIFT_WRITE_OWNER_ADMIN_DENIED" ||
+    result.code === "SHIFT_WRITE_PAYLOAD_INVALID"
+  ) {
+    if (pendingKey) {
+      window.sessionStorage.removeItem(pendingKey);
+    }
+  } else {
+    setNeedsReconciliation(true);
+  }
+}
 
       setStatus(
         verified
@@ -365,11 +425,20 @@ useEffect(() => {
       });
 
     } catch (error) {
-      setStatus(
-        error instanceof Error
-          ? error.message
-          : "SHIFT_GOOGLE_VALIDATION_FAILED"
-      );
+      if (mode === "SUBMIT" && requestDispatched) {
+  setNeedsReconciliation(true);
+
+  setStatus(
+    "Результат подання невідомий. " +
+    "Повторний запис заблоковано до звірки архіву."
+  );
+} else {
+  setStatus(
+    error instanceof Error
+      ? error.message
+      : "SHIFT_GOOGLE_VALIDATION_FAILED"
+  );
+}
             } finally {
       setChallenge(null);
       busyRef.current = false;
@@ -442,12 +511,12 @@ useEffect(() => {
   onClick={() => void start()}
 >
   {submitted
-    ? "Звіт подано"
-    : busy
-      ? "Перевіряється..."
-      : mode === "SUBMIT"
-        ? "Подати звіт"
-        : "Перевірити звіт"}
+  ? "Звіт подано"
+  : busy
+    ? "Перевіряється..."
+    : mode === "SUBMIT"
+      ? "Подати звіт"
+      : "Перевірити звіт"}
 </button>
 
       <div
