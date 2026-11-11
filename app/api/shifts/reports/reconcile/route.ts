@@ -124,18 +124,10 @@ export async function GET(request: Request): Promise<Response> {
       result.archiveRows?.kpi === 7;
 
     if (!confirmed) {
-      return noStore(
-        apiOk(
-          requestId,
-          {
-            decision: "UNRESOLVED" as const,
-            date,
-            archiveVerified: false,
-            writePerformed: false
-          },
-          "Запис не підтверджено. Не повторюйте подання.",
-          "SHIFT_RECONCILIATION_UNRESOLVED"
-        )
+      fail(
+        409,
+        "SHIFT_RECONCILIATION_UNRESOLVED",
+        "Архів та UUID не звірено. Повторне подання заборонено."
       );
     }
 
