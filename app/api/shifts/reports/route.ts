@@ -1,3 +1,7 @@
+import {
+  requireR3BabVerifiedIdentity
+} from "@/lib/server/r3-bab-identity";
+
 
 import {
   apiFromError,
@@ -139,10 +143,28 @@ const url = new URL(request.url);
       });
     }
 
+    if (
+  process.env.PROFIN_R3_BAB_ACL_BRIDGE_ENABLED !== "true" ||
+  process.env.PROFIN_R3_BAB_FINANCIAL_READ_ENABLED !== "true"
+) {
+  throw new AppError({
+    status: 403,
+    code: "SHIFT_HISTORY_READ_DISABLED",
+    userMessage: "Фінансове читання вимкнено.",
+    retryable: false
+  });
+}
+
+const identity = await requireR3BabVerifiedIdentity(
+  context,
+  `${year}-01-01`
+);
+
     const adapter = await callAppsScriptAdapter<
       {
-        month: number;
-        shiftId: string | null;
+      month: number;
+      shiftId: string | null;
+      identity: typeof identity;
       },
       AdapterData
     >({
@@ -152,8 +174,9 @@ const url = new URL(request.url);
       idempotencyKey: null,
       signal: request.signal,
       payload: {
-        month,
-        shiftId
+      month,
+      shiftId,
+      identity
       }
     });
 
@@ -163,6 +186,7 @@ const url = new URL(request.url);
       !result ||
       !Array.isArray(result.reports) ||
       !Array.isArray(result.details) ||
+      !Array.isArray(result.kpiDetails) ||
       !Array.isArray(result.summary?.months) ||
       result.year !== year ||
       result.month !== month
