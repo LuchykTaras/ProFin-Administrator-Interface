@@ -26,6 +26,7 @@ import {
 import { UkrainianDatePicker } from "@/components/ukrainian-date-picker";
 
 import {
+  ApiClientError,
   getApiErrorMessage
 } from "@/lib/client/api-client";
 
@@ -1816,13 +1817,37 @@ onSuccess?.(
        * Помилку показуємо
        * безпосередньо у UI.
        */
-      setSubmitError(
-        getApiErrorMessage(
-          submitOperationError,
+      const isUnconfirmedWrite =
+  submitOperationError instanceof ApiClientError &&
+  [
+    "APPS_SCRIPT_TIMEOUT",
+    "APPS_SCRIPT_NETWORK_ERROR",
+    "NETWORK_ERROR",
+    "INVALID_API_RESPONSE",
+    "INVALID_API_ENVELOPE",
+    "EMPTY_CREATE_OPERATION_RESULT"
+  ].includes(submitOperationError.code);
 
-          "Не вдалося провести операцію."
-        )
-      );
+if (isUnconfirmedWrite) {
+  const requestId =
+    submitOperationError.requestId;
+
+  setSubmitError(
+    "Сервер не підтвердив результат проведення. " +
+    "Операція могла бути записана. " +
+    "Не змінюйте форму й не створюйте нову операцію: " +
+    "спочатку перевірте журнал. " +
+    "Повторне натискання «Провести» використовує той самий ключ. " +
+    (requestId ? `Код запиту: ${requestId}.` : "")
+  );
+} else {
+  setSubmitError(
+    getApiErrorMessage(
+      submitOperationError,
+      "Не вдалося провести операцію."
+    )
+  );
+}
 
     } finally {
       setSubmitting(

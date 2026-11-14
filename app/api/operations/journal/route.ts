@@ -88,9 +88,16 @@ export async function GET(
     Request
 ) {
   const requestId =
-    getRequestId(
-      request
-    );
+    getRequestId(request);
+
+  const startedAt =
+    Date.now();
+
+  let isInitialLoad =
+    false;
+
+  let phase =
+    "SESSION";
 
   try {
     const context =
@@ -119,8 +126,14 @@ export async function GET(
         )
       );
 
-      const journal =
-    await getOperationJournal({
+          isInitialLoad =
+      afterRow === null;
+
+    phase =
+      "DOMAIN_ADAPTER";
+
+    const journal =
+      await getOperationJournal({
       requestId,
       context,
       requestedMonthKey:
@@ -138,6 +151,8 @@ export async function GET(
         request.signal
     });
 
+    phase = "DONE";
+
     return apiOk(
       requestId,
       journal,
@@ -150,12 +165,25 @@ export async function GET(
         ? "OPERATION_JOURNAL_DELTA"
         : "OPERATION_JOURNAL_MONTH"
     );
-  } catch (
+    } catch (
     error
   ) {
     return apiFromError(
       requestId,
       error
     );
+  } finally {
+    if (isInitialLoad) {
+      console.info(
+        JSON.stringify({
+          event:
+            "PROFIN_JOURNAL_INITIAL_TIMING",
+          requestId,
+          phase,
+          totalMs:
+            Date.now() - startedAt
+        })
+      );
+    }
   }
 }

@@ -16,7 +16,11 @@ import type {
   OperationJournalRow
 } from "@/lib/contracts/journal";
 
+import OperationJournalSkeleton from "./operation-journal-skeleton";
+
 import styles from "./operation-journal.module.css";
+
+
 
 
 type ApiEnvelope<T> = {
@@ -44,7 +48,7 @@ type ApiEnvelope<T> = {
 
 
 const POLLING_INTERVAL_MS =
-  12000;
+  6000;
 
 
 const CURRENCY_KEYS =
@@ -418,13 +422,7 @@ export default function OperationJournal({
       []
     );
 
-  const [
-    polling,
-    setPolling
-  ] =
-    useState(
-      false
-    );
+  
 
 
   const tableContainerRef =
@@ -564,11 +562,6 @@ export default function OperationJournal({
 
       pollRequestRunningRef.current =
         false;
-
-
-      setPolling(
-        false
-      );
 
 
       setRefreshing(
@@ -984,14 +977,8 @@ export default function OperationJournal({
           return;
         }
 
-
         pollRequestRunningRef.current =
           true;
-
-        setPolling(
-          true
-        );
-
 
         try {
           const delta =
@@ -1051,25 +1038,31 @@ export default function OperationJournal({
               }
 
 
-              const nextBase = {
-                ...current,
+              const nextRowNumber =
+  delta.latestRowNumber ??
+  current.latestRowNumber;
 
-                latestRowNumber:
-                  delta.latestRowNumber ??
-                  current.latestRowNumber,
+const nextOperationId =
+  delta.latestOperationId ??
+  current.latestOperationId;
 
-                latestOperationId:
-                  delta.latestOperationId ??
-                  current.latestOperationId
-              };
+if (
+  delta.rows.length === 0 &&
+  nextRowNumber === current.latestRowNumber &&
+  nextOperationId === current.latestOperationId
+) {
+  return current;
+}
 
+const nextBase = {
+  ...current,
+  latestRowNumber: nextRowNumber,
+  latestOperationId: nextOperationId
+};
 
-              if (
-                delta.rows.length ===
-                0
-              ) {
-                return nextBase;
-              }
+if (delta.rows.length === 0) {
+  return nextBase;
+}
 
 
               const container =
@@ -1158,18 +1151,9 @@ export default function OperationJournal({
            * не повинен зникати.
            */
         } finally {
-          pollRequestRunningRef.current =
-            false;
-
-
-          if (
-            mountedRef.current
-          ) {
-            setPolling(
-              false
-            );
-          }
-        }
+  pollRequestRunningRef.current =
+    false;
+}
       },
       [
         loadMonth,
@@ -1649,37 +1633,11 @@ export default function OperationJournal({
 
 
   if (
-    loading &&
-    !journal
-  ) {
-    return (
-      <section
-        className={
-          styles.shell
-        }
-      >
-        <div
-          className={
-            styles.loading
-          }
-        >
-          <span
-            className={
-              styles.spinner
-            }
-          />
-
-          <strong>
-            Завантажуємо журнал операцій…
-          </strong>
-
-          <span>
-            Отримуємо реальні дані з Бази операцій.
-          </span>
-        </div>
-      </section>
-    );
-  }
+  loading &&
+  !journal
+) {
+  return <OperationJournalSkeleton />;
+}
 
 
   if (
@@ -1815,16 +1773,6 @@ export default function OperationJournal({
             {" "}
             операцій за місяць
 
-            {polling &&
-              journal.live && (
-                <span
-                  className={
-                    styles.syncText
-                  }
-                >
-                  • перевірка нових записів
-                </span>
-              )}
           </div>
         </div>
 
@@ -2217,7 +2165,7 @@ export default function OperationJournal({
               styles.liveFooter
             }
           >
-            Автооновлення кожні 12 секунд
+            Автооновлення кожні {POLLING_INTERVAL_MS / 1000} секунд
           </span>
         ) : (
           <span>

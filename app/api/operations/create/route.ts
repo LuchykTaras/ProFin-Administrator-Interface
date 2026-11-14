@@ -362,6 +362,11 @@ export async function POST(
   const requestId =
     getRequestId(request);
 
+const startedAt = Date.now();
+let phase = "SESSION";
+let routeReadyAt: number | null = null;
+let domainReadyAt: number | null = null;
+
   try {
     const context =
       await requireSessionContext();
@@ -460,11 +465,17 @@ export async function POST(
      * year
      * spreadsheetId
      */
-    const annualRoute =
-      await resolveActiveYearRoute(
-        context,
-        operation.date
-      );
+    phase = "ROUTE";
+
+const annualRoute =
+  await resolveActiveYearRoute(
+    context,
+    operation.date
+  );
+
+routeReadyAt = Date.now();
+
+phase = "DOMAIN_ADAPTER";
 
     /*
      * Бізнес-проведення виконує
@@ -494,6 +505,9 @@ export async function POST(
           operation
         }
       });
+
+      domainReadyAt = Date.now();
+      phase = "CONTROL_PLANE";
 
     const data =
       adapterResponse.data;
@@ -748,6 +762,8 @@ export async function POST(
       });
     }
 
+    phase = "DONE";
+
     return apiOk(
       requestId,
       {
@@ -767,10 +783,28 @@ export async function POST(
       "OPERATION_CREATED"
     );
 
-  } catch (error) {
+    } catch (error) {
     return apiFromError(
       requestId,
       error
     );
+  } finally {
+    const completedAt = Date.now();
+
+    console.info(JSON.stringify({
+      event: "PROFIN_OPERATION_TIMING",
+      requestId,
+      phase,
+      totalMs: completedAt - startedAt,
+      beforeDomainMs: routeReadyAt === null
+        ? null
+        : routeReadyAt - startedAt,
+      domainMs: routeReadyAt === null || domainReadyAt === null
+        ? null
+        : domainReadyAt - routeReadyAt,
+      afterDomainMs: domainReadyAt === null
+        ? null
+        : completedAt - domainReadyAt
+    }));
   }
 }

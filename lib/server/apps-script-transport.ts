@@ -452,6 +452,12 @@ export async function callAppsScriptAdapter<
 ): Promise<
   AppsScriptAdapterResponse<TData>
 > {
+
+  const adapterStartedAt =
+    Date.now();
+
+  
+
   /*
    * PATCH 48
    *
@@ -687,6 +693,15 @@ console.log(
       auth
     };
 
+      const httpStartedAt =
+    Date.now();
+
+  let headersReceivedAt:
+    number | null = null;
+
+  let bodyReceivedAt:
+    number | null = null;
+
 
     let response:
     Response;
@@ -732,7 +747,10 @@ console.log(
               controller.signal
           }
         );
-    } catch (
+          headersReceivedAt =
+        Date.now();
+}
+    catch (
       error
     ) {
       if (
@@ -842,6 +860,9 @@ console.log(
     try {
       rawText =
         await response.text();
+           bodyReceivedAt =
+        Date.now();
+
     } catch (
       error
     ) {
@@ -918,21 +939,51 @@ console.log(
           true
       });
     }
-    } finally {
-    /*
-     * Cleanup робимо тільки після
-     * завершення fetch + body read.
-     */
+      } finally {
     clearTimeout(
       timeout
     );
-
 
     params.signal
       ?.removeEventListener(
         "abort",
         abortFromCaller
       );
+
+    if (
+      process.env.NODE_ENV === "development" &&
+      params.command === "createOperationWeb"
+    ) {
+      const finishedAt =
+        Date.now();
+
+      console.info(JSON.stringify({
+        event:
+          "PROFIN_APPS_SCRIPT_TRANSPORT_TIMING",
+
+        requestId:
+          params.requestId,
+
+        preparationMs:
+          httpStartedAt - adapterStartedAt,
+
+        fetchToHeadersMs:
+          (headersReceivedAt ?? finishedAt) -
+          httpStartedAt,
+
+        bodyReadMs:
+          headersReceivedAt === null
+            ? null
+            : (bodyReceivedAt ?? finishedAt) -
+              headersReceivedAt,
+
+        totalMs:
+          finishedAt - adapterStartedAt,
+
+        timedOut,
+        abortedByCaller
+      }));
+    }
   }
 
   let raw:
