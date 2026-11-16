@@ -2144,26 +2144,9 @@ const [
                                   }
                                 }
 
-                                onClick={
-                                  () => {
-                                    /*
-                                     * Повторний виклик безпечний:
-                                     * PATCH 45 dedupe приєднає
-                                     * модалку до вже запущеного
-                                     * READ-запиту замість дубля.
-                                     */
-                                    void prefetchOperationFormSchema({
-                                      operationType:
-                                        operationType.value,
-
-                                      category:
-                                        null,
-
-                                      article:
-                                        null
-                                    });
-                                    
-                                    setNewClientMode(false);
+                              onClick={
+                                   () => {
+                                     setNewClientMode(false);
 
                                     setSelectedOperationType(
                                       operationType.value

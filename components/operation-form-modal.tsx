@@ -1399,20 +1399,18 @@ setSubmitError(
   );
 
 
-  const visibleSections =
-  useMemo(
-    () =>
-      schema
-        ?.sections
-        .filter(
+    const visibleSections =
+    useMemo(
+      () =>
+        schema?.sections.filter(
           section =>
-            section.visible
-        ) ??
-      [],
-    [
-      schema
-    ]
-  );
+            section.visible &&
+            section.fields.some(
+              field => field.visible
+            )
+        ) ?? [],
+      [schema]
+    );
 
 
 const normalizedNewClient =
@@ -1434,21 +1432,8 @@ const newClientFieldsComplete =
   normalizedNewClient !==
     null;
 
-const pendingSections =
-  useMemo(
-      () =>
-        schema
-          ?.sections
-          .filter(
-            section =>
-              !section.visible &&
-              section.domainControlled
-          ) ??
-        [],
-      [
-        schema
-      ]
-    );
+const pendingSections:
+  OperationFormSection[] = [];
 
 
   /*

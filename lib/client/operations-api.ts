@@ -371,56 +371,37 @@ if (typeof window !== "undefined") {
       selection
     ) === "LIGHT";
 
-  if (
-    allowCache &&
-    options.cacheMode !== "reload"
-  ) {
-    const cached =
-      operationSchemaCache.get(
-        cacheKey
-      );
+    if (options.cacheMode !== "reload") {
+    if (allowCache) {
+      const cached =
+        operationSchemaCache.get(cacheKey);
 
-    if (
-      cached &&
-      cached.expiresAt > now
-    ) {
-      if (
-        now >= cached.refreshAt
-      ) {
-        cached.refreshAt =
-          now +
-          OPERATION_SCHEMA_LIGHT_REFRESH_MS;
+      if (cached && cached.expiresAt > now) {
+        if (now >= cached.refreshAt) {
+          cached.refreshAt =
+            now + OPERATION_SCHEMA_LIGHT_REFRESH_MS;
 
-        void getOperationFormSchema({
-          ...selection,
-          cacheMode: "reload"
-        }).catch(() => {});
+          void getOperationFormSchema({
+            ...selection,
+            cacheMode: "reload"
+          }).catch(() => {});
+        }
+
+        return cached.schema;
       }
 
-      return cached.schema;
+      if (cached) {
+        operationSchemaCache.delete(cacheKey);
+      }
     }
-
-
-    if (cached) {
-      operationSchemaCache.delete(
-        cacheKey
-      );
-    }
-
 
     const inflight =
-      operationSchemaInflight.get(
-        cacheKey
-      );
-
+      operationSchemaInflight.get(cacheKey);
 
     if (inflight) {
-      const schema =
-        await inflight;
+      const schema = await inflight;
 
-      throwIfAborted(
-        options.signal
-      );
+      throwIfAborted(options.signal);
 
       return schema;
     }
@@ -485,10 +466,7 @@ if (typeof window !== "undefined") {
       );
 
 
-    if (
-    allowCache &&
-    options.cacheMode !== "reload"
-  ) {
+      if (options.cacheMode !== "reload") {
     operationSchemaInflight.set(
       cacheKey,
       requestPromise
