@@ -83,6 +83,9 @@ type SchemaCacheEntry = {
 
   expiresAt:
     number;
+
+  refreshAt:
+    number;
 };
 
 
@@ -99,11 +102,10 @@ type SchemaCacheEntry = {
  * - retry може примусово обійти cache через cacheMode="reload".
  */
 const OPERATION_SCHEMA_LIGHT_CACHE_TTL_MS =
-  10 * 60_000;
-
-
-const OPERATION_SCHEMA_FULL_CACHE_TTL_MS =
   2 * 60_000;
+
+const OPERATION_SCHEMA_LIGHT_REFRESH_MS =
+  30_000;
 
 
 const operationSchemaCache =
@@ -315,12 +317,17 @@ export function clearOperationFormSchemaCache() {
   operationSchemaInflight.clear();
 }
 
+if (typeof window !== "undefined") {
+  window.addEventListener(
+    "pagehide",
+    clearOperationFormSchemaCache
+  );
+}
 
 /*
  * READ:
  * отримання server-driven schema.
- */
-export async function getOperationFormSchema(
+ */export async function getOperationFormSchema(
   options:
     GetOperationFormSchemaOptions =
       {}
@@ -359,21 +366,37 @@ export async function getOperationFormSchema(
     Date.now();
 
 
+    const allowCache =
+    resolveOperationSchemaMode(
+      selection
+    ) === "LIGHT";
+
   if (
-    options.cacheMode !==
-      "reload"
+    allowCache &&
+    options.cacheMode !== "reload"
   ) {
     const cached =
       operationSchemaCache.get(
         cacheKey
       );
 
-
     if (
       cached &&
-      cached.expiresAt >
-        now
+      cached.expiresAt > now
     ) {
+      if (
+        now >= cached.refreshAt
+      ) {
+        cached.refreshAt =
+          now +
+          OPERATION_SCHEMA_LIGHT_REFRESH_MS;
+
+        void getOperationFormSchema({
+          ...selection,
+          cacheMode: "reload"
+        }).catch(() => {});
+      }
+
       return cached.schema;
     }
 
@@ -418,22 +441,13 @@ export async function getOperationFormSchema(
     )
       .then(
         schema => {
-          if (
+                    if (
+            allowCache &&
             generation ===
               operationSchemaCacheGeneration
           ) {
-            const schemaMode =
-              resolveOperationSchemaMode(
-                selection
-              );
-
-
-            const ttlMs =
-              schemaMode ===
-                "LIGHT"
-                ? OPERATION_SCHEMA_LIGHT_CACHE_TTL_MS
-                : OPERATION_SCHEMA_FULL_CACHE_TTL_MS;
-
+            const now =
+              Date.now();
 
             operationSchemaCache.set(
               cacheKey,
@@ -441,8 +455,12 @@ export async function getOperationFormSchema(
                 schema,
 
                 expiresAt:
-                  Date.now() +
-                  ttlMs
+                  now +
+                  OPERATION_SCHEMA_LIGHT_CACHE_TTL_MS,
+
+                refreshAt:
+                  now +
+                  OPERATION_SCHEMA_LIGHT_REFRESH_MS
               }
             );
           }
@@ -467,9 +485,9 @@ export async function getOperationFormSchema(
       );
 
 
-  if (
-    options.cacheMode !==
-      "reload"
+    if (
+    allowCache &&
+    options.cacheMode !== "reload"
   ) {
     operationSchemaInflight.set(
       cacheKey,
