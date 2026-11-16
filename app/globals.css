@@ -1828,6 +1828,35 @@ td {
     uppercase;
 }
 
+.operation-condition-grid-live .operation-condition-live {
+  display: block;
+  min-width: 0;
+  min-height: 110px;
+}
+
+.operation-condition-live > .operation-form-section {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.operation-condition-live .operation-fields-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.operation-condition-inactive strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+
+.operation-condition-inactive p {
+  color: #70827a;
+  font-size: 12px;
+}
+
 
 /* --------------------------------------------
  * CONTRACT NOTE

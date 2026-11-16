@@ -107,6 +107,8 @@ const OPERATION_SCHEMA_LIGHT_CACHE_TTL_MS =
 const OPERATION_SCHEMA_LIGHT_REFRESH_MS =
   30_000;
 
+const OPERATION_SCHEMA_FULL_CACHE_TTL_MS =
+  15_000;
 
 const operationSchemaCache =
   new Map<
@@ -366,18 +368,23 @@ if (typeof window !== "undefined") {
     Date.now();
 
 
-    const allowCache =
-    resolveOperationSchemaMode(
-      selection
-    ) === "LIGHT";
+      const schemaMode =
+    resolveOperationSchemaMode(selection);
+
+  const allowCache =
+    schemaMode === "LIGHT" ||
+    schemaMode === "FULL";
 
     if (options.cacheMode !== "reload") {
     if (allowCache) {
       const cached =
         operationSchemaCache.get(cacheKey);
 
-      if (cached && cached.expiresAt > now) {
-        if (now >= cached.refreshAt) {
+            if (cached && cached.expiresAt > now) {
+        if (
+          schemaMode === "LIGHT" &&
+          now >= cached.refreshAt
+        ) {
           cached.refreshAt =
             now + OPERATION_SCHEMA_LIGHT_REFRESH_MS;
 
@@ -421,31 +428,35 @@ if (typeof window !== "undefined") {
       selection
     )
       .then(
-        schema => {
-                    if (
+                schema => {
+          if (
             allowCache &&
             generation ===
-              operationSchemaCacheGeneration
+              operationSchemaCacheGeneration &&
+            schema.source === "DOMAIN" &&
+            schema.domainOptionsReady === true
           ) {
-            const now =
-              Date.now();
+            const now = Date.now();
+
+            const ttlMs =
+              schemaMode === "LIGHT"
+                ? OPERATION_SCHEMA_LIGHT_CACHE_TTL_MS
+                : OPERATION_SCHEMA_FULL_CACHE_TTL_MS;
 
             operationSchemaCache.set(
               cacheKey,
               {
                 schema,
 
-                expiresAt:
-                  now +
-                  OPERATION_SCHEMA_LIGHT_CACHE_TTL_MS,
+                expiresAt: now + ttlMs,
 
                 refreshAt:
-                  now +
-                  OPERATION_SCHEMA_LIGHT_REFRESH_MS
+                  schemaMode === "LIGHT"
+                    ? now + OPERATION_SCHEMA_LIGHT_REFRESH_MS
+                    : now + ttlMs
               }
             );
           }
-
 
           return schema;
         }

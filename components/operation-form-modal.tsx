@@ -2,16 +2,12 @@
 
 import {
   AlertTriangle,
-  Boxes,
-  BriefcaseBusiness,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
   LoaderCircle,
-  Package,
   RefreshCw,
   Save,
-  Syringe,
   X
 } from "lucide-react";
 
@@ -99,6 +95,14 @@ NewClientDraft = {
   trustedPerson: "",
   trustedPhone: ""
 };
+
+const CONDITIONAL_BLOCKS = [
+  { id: "package", title: "Пакет" },
+  { id: "vaccine", title: "Вакцина" },
+  { id: "inventory", title: "Склад" },
+  { id: "asset", title: "Актив" },
+  { id: "vaccine-status", title: "Статус вакцини" }
+] as const;
 
 
 function normalizeNewClientDraft(
@@ -476,60 +480,8 @@ function buildCreateOperationInput(
   }
 
 
-  return operation as
+   return operation as
     CreateOperationInput;
-}
-
-
-function ConditionalIcon({
-  id
-}: {
-  id:
-    OperationFormSection["id"];
-}) {
-  if (
-    id ===
-    "package"
-  ) {
-    return (
-      <Package
-        size={20}
-      />
-    );
-  }
-
-
-  if (
-    id ===
-      "vaccine" ||
-    id ===
-      "vaccine-status"
-  ) {
-    return (
-      <Syringe
-        size={20}
-      />
-    );
-  }
-
-
-  if (
-    id ===
-    "inventory"
-  ) {
-    return (
-      <Boxes
-        size={20}
-      />
-    );
-  }
-
-
-  return (
-    <BriefcaseBusiness
-      size={20}
-    />
-  );
 }
 
 
@@ -1110,6 +1062,27 @@ const [
           }
 
 
+                    if (process.env.NODE_ENV === "development") {
+            console.table(
+              nextSchema.sections
+                .filter(section => section.id !== "basic")
+                .map(section => ({
+                  block: section.id,
+                  active: section.visible,
+                  visibleFields:
+                    section.fields.filter(
+                      field => field.visible
+                    ).map(field => field.key).join(", "),
+                  optionsCount:
+                    section.fields.reduce(
+                      (total, field) =>
+                        total + (field.options?.length ?? 0),
+                      0
+                    )
+                }))
+            );
+          }
+
           setSchema(
             nextSchema
           );
@@ -1431,10 +1404,6 @@ const newClientFieldsComplete =
   !initialNewClient ||
   normalizedNewClient !==
     null;
-
-const pendingSections:
-  OperationFormSection[] = [];
-
 
   /*
    * Перевіряємо required-поля.
@@ -2518,144 +2487,80 @@ if (isUnconfirmedWrite) {
 
 
                     {
-                     visibleSections.map(
-                      section => (
-                      <FormSection
-                        key={
-                          section.id
-                        }
+  visibleSections
+    .filter(section => section.id === "basic")
+    .map(section => (
+      <FormSection
+        key={section.id}
+        section={section}
+        draft={draft}
+        locked={
+          loading ||
+          submitting ||
+          Boolean(submitResult)
+        }
+        onFieldChange={changeField}
+      />
+    ))
+}
 
-                        section={
-                          section
-                        }
+<section className="operation-form-section">
+  <div className="operation-section-heading">
+    <div>
+      <h3>Умовні блоки</h3>
+      <p>
+        Реальні поля та значення надходять із domain schema.
+      </p>
+    </div>
+  </div>
 
-                        draft={
-                          draft
-                        }
+  <div className="operation-condition-grid operation-condition-grid-live">
+    {CONDITIONAL_BLOCKS.map(block => {
+      const section = schema.sections.find(
+        item => item.id === block.id
+      );
 
-                        locked={
-                          loading ||
-                          submitting ||
-                          Boolean(
-                            submitResult
-                          )
-                        }
+      const active = Boolean(
+        section?.visible &&
+        section.fields.some(field => field.visible)
+      );
 
-                        onFieldChange={
-                          changeField
-                        }
-                      />
-                    )
-                  )
-                }
+      return (
+        <div
+          key={block.id}
+          className="operation-condition-card operation-condition-live"
+        >
+          {active && section ? (
+            <FormSection
+              section={section}
+              draft={draft}
+              locked={
+                loading ||
+                submitting ||
+                Boolean(submitResult)
+              }
+              onFieldChange={changeField}
+            />
+          ) : (
+            <div className="operation-condition-inactive">
+              <strong>
+                {section?.title ?? block.title}
+              </strong>
 
+              <p>
+                Не застосовується до цієї операції.
+              </p>
+            </div>
+          )}
+        </div>
+      );
+    })}
+  </div>
+</section>
 
-                {
-                  pendingSections.length >
-                    0 &&
-                  (
-                    <section
-                      className=
-                        "operation-form-section"
-                    >
-                      <div
-                        className=
-                          "operation-section-heading"
-                      >
-                        <div>
-                          <h3>
-                            Умовні блоки
-                          </h3>
-
-                          <p>
-                            Їх видимість
-                            визначатиме
-                            domain schema.
-                          </p>
-                        </div>
-                      </div>
-
-
-                      <div
-                        className=
-                          "operation-condition-grid"
-                      >
-                        {
-                          pendingSections.map(
-                            section => (
-                              <article
-                                key={
-                                  section.id
-                                }
-
-                                className=
-                                  "operation-condition-card"
-                              >
-                                <div
-                                  className=
-                                    "operation-condition-icon"
-                                >
-                                  <ConditionalIcon
-                                    id={
-                                      section.id
-                                    }
-                                  />
-                                </div>
-
-
-                                <div>
-                                  <strong>
-                                    {
-                                      section.title
-                                    }
-                                  </strong>
-
-                                  <p>
-                                    {
-                                      section.description
-                                    }
-                                  </p>
-
-                                  <ul>
-                                    {
-                                      section.fields.map(
-                                        field => (
-                                          <li
-                                            key={
-                                              field.key
-                                            }
-                                          >
-                                            {
-                                              field.label
-                                            }
-                                          </li>
-                                        )
-                                      )
-                                    }
-                                  </ul>
-                                </div>
-
-
-                                <span
-                                  className=
-                                    "operation-waiting-badge"
-                                >
-                                  Очікує schema
-                                </span>
-                              </article>
-                            )
-                          )
-                        }
-                      </div>
-                    </section>
-                  )
-                }
-
-
-                <section
-                  className=
-                    "operation-contract-note"
-                >
+<section
+  className="operation-contract-note"
+>
                   <CheckCircle2
                     size={19}
                   />

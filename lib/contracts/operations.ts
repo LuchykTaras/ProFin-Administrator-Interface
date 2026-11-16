@@ -26,6 +26,7 @@ export type OperationFieldKey =
   | "packageAccrualStart"
   | "vaccineName"
   | "vaccinePatient"
+  | "vaccineQty"
   | "vaccineCost"
   | "vaccineSeries"
   | "storedVaccineId"

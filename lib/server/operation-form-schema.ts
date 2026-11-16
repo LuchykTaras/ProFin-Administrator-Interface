@@ -185,6 +185,7 @@ const ALLOWED_FIELD_KEYS:
     "packageAccrualStart",
     "vaccineName",
     "vaccinePatient",
+    "vaccineQty",
     "vaccineCost",
     "vaccineSeries",
     "storedVaccineId",
