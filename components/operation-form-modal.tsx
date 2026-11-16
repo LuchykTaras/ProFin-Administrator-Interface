@@ -1948,32 +1948,119 @@ if (isUnconfirmedWrite) {
             "operation-modal-body"
         >
           {
-            loading &&
-            !schema &&
-            (
-              <div
-                className=
-                  "operation-schema-state"
+  !schema &&
+  !error &&
+  !submitResult &&
+  (
+    initialNewClient ? (
+      <div className="operation-schema-state">
+        <LoaderCircle
+          className="operation-schema-spinner"
+          size={28}
+        />
+
+        <strong>
+          Завантаження структури форми
+        </strong>
+
+        <span>
+          Отримуємо server-side contract…
+        </span>
+      </div>
+    ) : (
+      <section
+        className="operation-form-section"
+        aria-busy={loading}
+      >
+        <div className="operation-section-heading">
+          <div>
+            <h3>Основні дані</h3>
+            <p>
+              Дату та коментар можна заповнювати.
+              Решта полів синхронізується із сервером.
+            </p>
+          </div>
+
+          <span className="operation-section-badge">
+            Завантаження
+          </span>
+        </div>
+
+        <div className="operation-fields-grid">
+          <label className="operation-field">
+            <span>Дата операції</span>
+
+            <div className="operation-input-shell with-icon">
+              <CalendarDays size={16} />
+
+              <UkrainianDatePicker
+                value={String(draft.date ?? "")}
+                ariaLabel="Дата операції"
+                onChange={value => {
+                  idempotencyKeyRef.current = null;
+
+                  setDraft(current => ({
+                    ...current,
+                    date: value
+                  }));
+                }}
+              />
+            </div>
+          </label>
+
+          <label className="operation-field">
+            <span>Тип операції</span>
+
+            <div className="operation-input-shell">
+              <input
+                type="text"
+                value={initialOperationType ?? ""}
+                readOnly
+              />
+            </div>
+          </label>
+
+          {(["Рахунок", "Категорія", "Стаття"] as const)
+            .map(label => (
+              <label
+                className="operation-field"
+                key={label}
               >
-                <LoaderCircle
-                  className=
-                    "operation-schema-spinner"
+                <span>{label}</span>
 
-                  size={28}
-                />
+                <div className="operation-select-shell">
+                  <select disabled defaultValue="">
+                    <option value="">
+                      Завантаження з сервера…
+                    </option>
+                  </select>
 
-                <strong>
-                  Завантаження
-                  структури форми
-                </strong>
+                  <ChevronDown size={16} />
+                </div>
+              </label>
+            ))}
 
-                <span>
-                  Отримуємо дозволений
-                  server-side contract…
-                </span>
-              </div>
-            )
-          }
+          <label className="operation-field operation-field-full">
+            <span>Коментар</span>
+
+            <textarea
+              value={String(draft.comment ?? "")}
+              placeholder="Коментар до операції"
+              onChange={event => {
+                idempotencyKeyRef.current = null;
+
+                setDraft(current => ({
+                  ...current,
+                  comment: event.target.value
+                }));
+              }}
+            />
+          </label>
+        </div>
+      </section>
+    )
+  )
+}
 
 
           {

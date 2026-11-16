@@ -499,9 +499,13 @@ function QuickAction({
         onIntent
       }
 
-      onFocus={
-        onIntent
-      }
+    onPointerDown={
+     onIntent
+     }
+
+    onFocus={
+     onIntent
+     }
     >
       <span
         className={
@@ -2993,13 +2997,21 @@ onAdapterReady={
 
 
         <OperationFormModal
-          open={
-            operationModalOpen
-          }
+  key={
+    operationModalOpen
+      ? newClientMode
+        ? "new-client"
+        : `operation:${selectedOperationType ?? ""}`
+      : "closed"
+  }
 
-          domainReady={
-            domainReady
-          }
+  open={
+    operationModalOpen
+  }
+
+  domainReady={
+    domainReady
+  }
 
           initialOperationType={
             selectedOperationType
