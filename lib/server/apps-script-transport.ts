@@ -956,9 +956,10 @@ console.log(
     process.env.PROFIN_JOURNAL_PERF_DIAG_ENABLED === "true"
   ) &&
   (
-    params.command === "createOperationWeb" ||
+        params.command === "createOperationWeb" ||
     params.command === "getOperationFormSchemaWeb" ||
-    params.command === "getOperationJournal"
+    params.command === "getOperationJournal" ||
+    params.command === "getInventory"
   )
 ) {
       const finishedAt =
