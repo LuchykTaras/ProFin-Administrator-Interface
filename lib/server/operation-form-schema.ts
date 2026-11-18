@@ -58,11 +58,13 @@ type GetOperationFormSchemaParams = {
 
 
   schemaMode:
-    OperationFormSchemaMode;
+  OperationFormSchemaMode;
 
+  deferPatientOptions:
+  boolean;
 
-  signal?:
-    AbortSignal;
+signal?:
+  AbortSignal;
 };
 
 
@@ -139,10 +141,13 @@ type NormalizedDomainSchema = {
   schemaChecksum:
     string | null;
 
-  source:
+    source:
     "DOMAIN";
 
   domainOptionsReady:
+    boolean;
+
+  patientOptionsDeferred:
     boolean;
 
   operationTypes:
@@ -1112,6 +1117,9 @@ function normalizeDomainSchema(
       value.domainOptionsReady ===
         true,
 
+    patientOptionsDeferred:
+  value.patientOptionsDeferred === true,
+
     operationTypes,
 
     selectedOperationType:
@@ -1354,9 +1362,11 @@ export async function getOperationFormSchema(
         article:
           string | null;
 
-
         schemaMode:
           OperationFormSchemaMode;
+
+        deferPatientOptions:
+          boolean;
       },
 
       AppsScriptOperationFormSchemaData
@@ -1394,11 +1404,18 @@ export async function getOperationFormSchema(
 
 
         article:
-          requestedArticle,
+  requestedArticle,
 
+schemaMode:
+  params.schemaMode,
 
-        schemaMode:
-          params.schemaMode
+deferPatientOptions:
+  process.env
+    .NEXT_PUBLIC_PROFIN_PARALLEL_INCOME_SCHEMA_ENABLED ===
+      "true" &&
+  params.deferPatientOptions === true &&
+  params.schemaMode === "FULL" &&
+  requestedOperationType === "Доходи"
       }
     });
 
@@ -1548,6 +1565,9 @@ export async function getOperationFormSchema(
 
   domainOptionsReady:
     domain.domainOptionsReady,
+
+    patientOptionsDeferred:
+  domain.patientOptionsDeferred,
 
   operationTypes:
     domain.operationTypes,

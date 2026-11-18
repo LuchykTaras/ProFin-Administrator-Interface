@@ -140,10 +140,13 @@ export type OperationFormSchema = {
   adapterBuildId?:
     string | null;
 
-  source:
+    source:
     OperationFieldSource;
 
   domainOptionsReady:
+    boolean;
+
+  patientOptionsDeferred?:
     boolean;
 
   operationTypes:

@@ -90,23 +90,24 @@ export async function GET(
   const requestId =
     getRequestId(request);
 
-  const startedAt =
-    Date.now();
+    const startedAt = Date.now();
 
-  let isInitialLoad =
-    false;
+  let sessionMs = 0;
+  let adapterMs = 0;
 
-  let phase =
-    "SESSION";
+  let isInitialLoad = false;
+  let phase = "SESSION";
 
   try {
     const context =
       await requireSessionContext();
 
-    assertPermission(
+        assertPermission(
       context,
       "journal:read"
     );
+
+    sessionMs = Date.now() - startedAt;
 
     const url =
       new URL(
@@ -129,8 +130,10 @@ export async function GET(
           isInitialLoad =
       afterRow === null;
 
-    phase =
+       phase =
       "DOMAIN_ADAPTER";
+
+    const adapterStartedAt = Date.now();
 
     const journal =
       await getOperationJournal({
@@ -149,7 +152,9 @@ export async function GET(
        */
       signal:
         request.signal
-    });
+        });
+
+    adapterMs = Date.now() - adapterStartedAt;
 
     phase = "DONE";
 
@@ -180,8 +185,12 @@ export async function GET(
             "PROFIN_JOURNAL_INITIAL_TIMING",
           requestId,
           phase,
-          totalMs:
-            Date.now() - startedAt
+        totalMs:
+            Date.now() - startedAt,
+
+          sessionMs,
+
+          adapterMs
         })
       );
     }

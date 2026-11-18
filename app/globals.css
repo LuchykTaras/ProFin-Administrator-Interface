@@ -6883,3 +6883,57 @@ svg.lucide-refresh-cw {
 .cash-dashboard .notifications {
   width: 100%;
 }
+
+.operation-patient-lookup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.operation-patient-lookup > input {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid #dce7e2;
+  border-radius: 9px;
+  background: #fff;
+  color: #183c32;
+}
+
+.operation-patient-results {
+  max-height: 190px;
+  overflow-y: auto;
+  border: 1px solid #dce7e2;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.operation-patient-results button {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.operation-patient-results button:hover {
+  background: #e9f5ee;
+}
+
+.operation-patient-selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 42px;
+}
+
+.operation-patient-selected button {
+  border: 0;
+  background: transparent;
+  color: #087d63;
+  cursor: pointer;
+}

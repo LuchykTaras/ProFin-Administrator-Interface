@@ -32,11 +32,16 @@ import {
   getOperationFormSchema
 } from "@/lib/client/operations-api";
 
+import {
+  getOperationPatientOptions
+} from "@/lib/client/operation-patients-api";
+
 import type {
   CreateOperationInput,
   CreateOperationNewClientInput,
   CreateOperationResult,
   OperationDraft,
+  OperationFieldOption,
   OperationFormField,
   OperationFormSchema,
   OperationFormSection
@@ -101,8 +106,13 @@ const CONDITIONAL_BLOCKS = [
   { id: "vaccine", title: "Вакцина" },
   { id: "inventory", title: "Склад" },
   { id: "asset", title: "Актив" },
-  { id: "vaccine-status", title: "Статус вакцини" }
+    { id: "vaccine-status", title: "Статус вакцини" }
 ] as const;
+
+const PERF11_ENABLED =
+  process.env
+    .NEXT_PUBLIC_PROFIN_PARALLEL_INCOME_SCHEMA_ENABLED ===
+  "true";
 
 
 function normalizeNewClientDraft(
@@ -480,10 +490,9 @@ function buildCreateOperationInput(
   }
 
 
-   return operation as
-    CreateOperationInput;
+      return operation as
+     CreateOperationInput;
 }
-
 
 function FieldControl({
   field,
@@ -505,10 +514,9 @@ function FieldControl({
   locked?:
     boolean;
 }) {
-  const disabled =
+      const disabled =
     locked ||
     !field.enabled;
-
 
   if (
     field.kind ===
@@ -995,10 +1003,35 @@ const [
    * Захист від race condition
    * між schema-запитами.
    */
-  const schemaRequestSequence =
+    const schemaRequestSequence =
     useRef(
       0
     );
+
+  const [
+    patientOptions,
+    setPatientOptions
+  ] = useState<OperationFieldOption[] | null>(null);
+
+  const [
+    patientOptionsLoading,
+    setPatientOptionsLoading
+  ] = useState(false);
+
+  const [
+    patientOptionsError,
+    setPatientOptionsError
+  ] = useState("");
+
+  const [
+    patientOptionsRefreshKey,
+    setPatientOptionsRefreshKey
+  ] = useState(0);
+
+  const activeOperationType =
+    String(
+      draft.type || initialOperationType || ""
+    ).trim();
 
 
   /*
@@ -1038,7 +1071,7 @@ const [
 
 
         try {
-          const nextSchema =
+                    const nextSchema =
             await getOperationFormSchema({
               operationType:
                 selection.operationType,
@@ -1048,6 +1081,10 @@ const [
 
               article:
                 selection.article,
+
+              deferPatientOptions:
+                PERF11_ENABLED &&
+                selection.operationType === "Доходи",
 
               signal
             });
@@ -1243,9 +1280,59 @@ setSubmitError(
       open,
       reloadKey,
       initialOperationType,
-      loadSchemaForSelection
+            loadSchemaForSelection
     ]
   );
+
+  useEffect(() => {
+    if (
+      !open ||
+      !PERF11_ENABLED ||
+      activeOperationType !== "Доходи"
+    ) {
+      setPatientOptions(null);
+      setPatientOptionsError("");
+      setPatientOptionsLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    setPatientOptions(null);
+    setPatientOptionsError("");
+    setPatientOptionsLoading(true);
+
+    void getOperationPatientOptions(controller.signal)
+      .then(items => {
+        if (!controller.signal.aborted) {
+          setPatientOptions(items);
+        }
+      })
+      .catch(loadError => {
+        if (!controller.signal.aborted) {
+          setPatientOptionsError(
+            getApiErrorMessage(
+              loadError,
+              "Не вдалося завантажити пацієнтів."
+            )
+          );
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setPatientOptionsLoading(false);
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [
+    open,
+    activeOperationType,
+    patientOptionsRefreshKey,
+    reloadKey
+  ]);
 
   /*
    * Нова schema не повинна
@@ -1372,18 +1459,43 @@ setSubmitError(
   );
 
 
-    const visibleSections =
-    useMemo(
-      () =>
-        schema?.sections.filter(
-          section =>
-            section.visible &&
-            section.fields.some(
-              field => field.visible
-            )
-        ) ?? [],
-      [schema]
-    );
+      const displaySchema = useMemo(() => {
+    if (!schema || !schema.patientOptionsDeferred) {
+      return schema;
+    }
+
+    return {
+      ...schema,
+      sections: schema.sections.map(section => ({
+        ...section,
+        fields: section.fields.map(field => {
+          if (field.key !== "patient") {
+            return field;
+          }
+
+          return {
+            ...field,
+            options: patientOptions ?? [],
+            enabled:
+              patientOptions !== null &&
+              patientOptions.length > 0
+          };
+        })
+      }))
+    };
+  }, [schema, patientOptions]);
+
+  const visibleSections = useMemo(
+    () =>
+      displaySchema?.sections.filter(
+        section =>
+          section.visible &&
+          section.fields.some(
+            field => field.visible
+          )
+      ) ?? [],
+    [displaySchema]
+  );
 
 
 const normalizedNewClient =
@@ -1669,6 +1781,21 @@ const canSubmit =
   Boolean(
     modalDomainReady &&
     schema?.canSubmit &&
+    (
+      !schema.patientOptionsDeferred ||
+      (
+        patientOptions !== null &&
+        !patientOptionsLoading &&
+        !patientOptionsError &&
+        displaySchema?.sections.some(
+          section => section.fields.some(
+            field =>
+              field.key === "patient" &&
+              field.visible
+          )
+        ) === true
+      )
+    ) &&
     requiredFieldsComplete &&
     newClientFieldsComplete &&
     !loading &&
@@ -1683,10 +1810,10 @@ const canSubmit =
    * Фактичне проведення.
    */
   async function submitOperation() {
-    if (
+        if (
       !canSubmit ||
       submitting ||
-      !schema
+      !displaySchema
     ) {
       return;
     }
@@ -1726,13 +1853,13 @@ const canSubmit =
        * належать до поточного
        * domain-сценарію.
        */
-      const operation =
-  buildCreateOperationInput(
-    draft,
-    schema,
-    initialOperationType,
-    normalizedNewClient
-  );
+            const operation =
+        buildCreateOperationInput(
+          draft,
+          displaySchema,
+          initialOperationType,
+          normalizedNewClient
+        );
 
 
       const result =
@@ -2092,6 +2219,48 @@ if (isUnconfirmedWrite) {
             )
           }
 
+
+          {
+            schema?.patientOptionsDeferred &&
+            patientOptionsLoading &&
+            (
+              <div
+                className="operation-schema-refresh-bar"
+                role="status"
+              >
+                <LoaderCircle
+                  className="operation-schema-spinner"
+                  size={18}
+                />
+
+                <span>
+                  Завантажуємо повний список пацієнтів…
+                </span>
+              </div>
+            )
+          }
+
+          {schema?.patientOptionsDeferred &&
+patientOptionsError ? (
+  <div
+    className="operation-schema-state operation-schema-error"
+    role="alert"
+  >
+    <AlertTriangle size={22} />
+
+    <span>{patientOptionsError}</span>
+
+    <button
+      type="button"
+      className="operation-schema-retry"
+      onClick={() =>
+        setPatientOptionsRefreshKey(value => value + 1)
+      }
+    >
+      Повторити завантаження пацієнтів
+    </button>
+  </div>
+) : null}
 
           {
             !loading &&

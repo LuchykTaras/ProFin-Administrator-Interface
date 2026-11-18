@@ -22,8 +22,11 @@ export type GetOperationFormSchemaOptions = {
   category?:
     string | null;
 
-  article?:
+    article?:
     string | null;
+
+  deferPatientOptions?:
+    boolean;
 
   /*
    * Якщо не задано:
@@ -48,8 +51,11 @@ export type OperationFormSchemaSelection = {
   category?:
     string | null;
 
-  article?:
+    article?:
     string | null;
+
+  deferPatientOptions?:
+    boolean;
 
   schemaMode?:
     OperationFormSchemaMode;
@@ -170,9 +176,13 @@ function buildOperationSchemaCacheKey(
       options.category
     ),
 
-    cleanSelectionValue(
+        cleanSelectionValue(
       options.article
-    )
+    ),
+
+    options.deferPatientOptions === true
+      ? "DEFERRED"
+      : "FULL_PATIENTS"
   ]);
 }
 
@@ -213,7 +223,7 @@ function buildOperationSchemaPath(
   }
 
 
-  if (
+    if (
     options.article
   ) {
     params.set(
@@ -222,6 +232,9 @@ function buildOperationSchemaPath(
     );
   }
 
+  if (options.deferPatientOptions === true) {
+    params.set("deferPatients", "1");
+  }
 
   const query =
     params.toString();
@@ -352,9 +365,11 @@ if (typeof window !== "undefined") {
       article:
         options.article ?? null,
 
-
       schemaMode:
-        options.schemaMode
+        options.schemaMode,
+
+      deferPatientOptions:
+        options.deferPatientOptions === true
     };
 
 

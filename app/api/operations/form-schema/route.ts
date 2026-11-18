@@ -130,6 +130,13 @@ export async function GET(
               : "LIGHT"
           );
 
+const deferPatientOptions =
+  process.env
+    .NEXT_PUBLIC_PROFIN_PARALLEL_INCOME_SCHEMA_ENABLED ===
+      "true" &&
+  schemaMode === "FULL" &&
+  requestedOperationType?.trim() === "Доходи" &&
+  url.searchParams.get("deferPatients") === "1";
 
     const schema =
     await getOperationFormSchema({
@@ -148,18 +155,15 @@ export async function GET(
       requestedArticle:
         requestedArticle,
 
-      schemaMode:
+           schemaMode:
         schemaMode,
 
-      /*
-       * Той самий race-control,
-       * який ми вже зробили
-       * для Journal.
-       */
+      deferPatientOptions:
+        deferPatientOptions,
+
       signal:
         request.signal
     });
-
 
     return apiOk(
       requestId,

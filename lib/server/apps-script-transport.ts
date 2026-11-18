@@ -951,9 +951,16 @@ console.log(
       );
 
     if (
-      process.env.NODE_ENV === "development" &&
-      params.command === "createOperationWeb"
-    ) {
+  (
+    process.env.NODE_ENV === "development" ||
+    process.env.PROFIN_JOURNAL_PERF_DIAG_ENABLED === "true"
+  ) &&
+  (
+    params.command === "createOperationWeb" ||
+    params.command === "getOperationFormSchemaWeb" ||
+    params.command === "getOperationJournal"
+  )
+) {
       const finishedAt =
         Date.now();
 
