@@ -126,9 +126,41 @@ function getAppsScriptWebAppUrl(
         "Для Альтернативи ще не підключено окремий Apps Script.",
       technicalMessage:
         "ALT 2026 requires year_registry.apps_script_web_app_url.",
+            retryable: false
+    });
+  }
+
+
+  // SAFE-02
+  // Opt-in dedicated production URL policy.
+  // Legacy fallback remains unchanged
+  // until explicitly enabled.
+
+  if (
+    process.env
+      .PROFIN_REQUIRE_DEDICATED_PRODUCTION_ADAPTER ===
+        "true" &&
+
+    annualRoute.routeMode === "PRODUCTION" &&
+
+    !routeUrl
+  ) {
+    throw new AppError({
+      status: 503,
+
+      code:
+        "PRODUCTION_ROUTE_ADAPTER_URL_REQUIRED",
+
+      userMessage:
+        "Для поточної філії не налаштовано окреме підключення до Apps Script.",
+
+      technicalMessage:
+        "The active PRODUCTION route has no year_registry.apps_script_web_app_url.",
+
       retryable: false
     });
   }
+
 
     // PATCH 56.9.3
   // Local diagnostic override: ALT 2026,
