@@ -114,6 +114,11 @@ const PERF11_ENABLED =
     .NEXT_PUBLIC_PROFIN_PARALLEL_INCOME_SCHEMA_ENABLED ===
   "true";
 
+const PERF15_ENABLED =
+  process.env
+    .NEXT_PUBLIC_PROFIN_PERF15_LOCAL_INCOME_OPTIONS_ENABLED ===
+  "true";
+
 
 function normalizeNewClientDraft(
   draft:
@@ -1460,19 +1465,47 @@ setSubmitError(
 
 
       const displaySchema = useMemo(() => {
-    if (!schema || !schema.patientOptionsDeferred) {
-      return schema;
-    }
+  if (!schema) {
+    return schema;
+  }
 
-    return {
-      ...schema,
-      sections: schema.sections.map(section => ({
-        ...section,
-        fields: section.fields.map(field => {
-          if (field.key !== "patient") {
-            return field;
-          }
+  const category =
+    String(draft.category ?? "").trim();
 
+  const tree =
+    PERF15_ENABLED &&
+    !loading &&
+    activeOperationType === "Доходи" &&
+    schema.selectedOperationType === "Доходи"
+      ? schema.incomeArticlesByCategory
+      : null;
+
+  const localArticles =
+    tree &&
+    category &&
+    Object.prototype.hasOwnProperty.call(
+      tree,
+      category
+    )
+      ? tree[category]
+      : null;
+
+  if (
+    !schema.patientOptionsDeferred &&
+    !localArticles
+  ) {
+    return schema;
+  }
+
+  return {
+    ...schema,
+    sections: schema.sections.map(section => ({
+      ...section,
+      fields: section.fields.map(field => {
+        if (
+          field.key === "patient" &&
+          schema.patientOptionsDeferred
+        ) {
           return {
             ...field,
             options: patientOptions ?? [],
@@ -1480,10 +1513,30 @@ setSubmitError(
               patientOptions !== null &&
               patientOptions.length > 0
           };
-        })
-      }))
-    };
-  }, [schema, patientOptions]);
+        }
+
+        if (
+          field.key === "article" &&
+          localArticles
+        ) {
+          return {
+            ...field,
+            options: localArticles,
+            enabled: localArticles.length > 0
+          };
+        }
+
+        return field;
+      })
+    }))
+  };
+}, [
+  schema,
+  patientOptions,
+  draft.category,
+  activeOperationType,
+  loading
+]);
 
   const visibleSections = useMemo(
     () =>
@@ -1742,7 +1795,6 @@ function changeField(
         .trim() ||
       null;
 
-
     const article =
       String(
         nextDraft.article ??
@@ -1751,8 +1803,45 @@ function changeField(
         .trim() ||
       null;
 
+    const incomeTree =
+      PERF15_ENABLED &&
+      !loading &&
+      schema?.source === "DOMAIN" &&
+      schema.selectedOperationType === "Доходи" &&
+      operationType === "Доходи"
+        ? schema.incomeArticlesByCategory
+        : null;
 
-    void loadSchemaForSelection({
+    const localArticles =
+      incomeTree &&
+      category &&
+      Object.prototype.hasOwnProperty.call(
+        incomeTree,
+        category
+      )
+        ? incomeTree[category]
+        : null;
+
+    if (
+      localArticles &&
+      localArticles.length > 0 &&
+      (
+        field.key === "category" ||
+        (
+          field.key === "article" &&
+          (
+            !value ||
+            localArticles.some(
+              option => option.value === value
+            )
+          )
+        )
+      )
+    ) {
+      return;
+    }
+
+        void loadSchemaForSelection({
       operationType,
       category,
       article
@@ -1761,7 +1850,7 @@ function changeField(
 
 
   /*
- * PATCH A7 — MODAL DOMAIN READINESS
+   * PATCH A7 — MODAL DOMAIN READINESS
  *
  * Перевіряємо фактично отриману
  * server-side domain schema.

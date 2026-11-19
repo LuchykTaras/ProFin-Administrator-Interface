@@ -146,8 +146,11 @@ export type OperationFormSchema = {
   domainOptionsReady:
     boolean;
 
-  patientOptionsDeferred?:
+    patientOptionsDeferred?:
     boolean;
+
+  incomeArticlesByCategory?:
+    Record<string, OperationFieldOption[]> | null;
 
   operationTypes:
     OperationTypeOption[];

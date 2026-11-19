@@ -147,8 +147,11 @@ type NormalizedDomainSchema = {
   domainOptionsReady:
     boolean;
 
-  patientOptionsDeferred:
+    patientOptionsDeferred:
     boolean;
+
+  incomeArticlesByCategory:
+    Record<string, OperationFieldOption[]> | null;
 
   operationTypes:
     OperationTypeOption[];
@@ -443,6 +446,48 @@ function normalizeFieldOptions(
   return result;
 }
 
+function normalizeIncomeArticleTree(
+  value: unknown
+): Record<string, OperationFieldOption[]> | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const entries = Object.entries(value);
+
+  if (!entries.length) {
+    return null;
+  }
+
+  const result:
+    Record<string, OperationFieldOption[]> =
+      Object.create(null);
+
+  for (const [category, rawArticles] of entries) {
+    if (
+      !category.trim() ||
+      !Array.isArray(rawArticles) ||
+      rawArticles.some(
+        item =>
+          typeof item !== "string" ||
+          !item.trim()
+      )
+    ) {
+      return null;
+    }
+
+    const options =
+      normalizeFieldOptions(rawArticles);
+
+    if (!options.length) {
+      return null;
+    }
+
+    result[category] = options;
+  }
+
+  return result;
+}
 
 function normalizeOperationTypes(
   value:
@@ -1117,8 +1162,13 @@ function normalizeDomainSchema(
       value.domainOptionsReady ===
         true,
 
-    patientOptionsDeferred:
-  value.patientOptionsDeferred === true,
+        patientOptionsDeferred:
+      value.patientOptionsDeferred === true,
+
+    incomeArticlesByCategory:
+      normalizeIncomeArticleTree(
+        value.incomeArticlesByCategory
+      ),
 
     operationTypes,
 
@@ -1566,8 +1616,11 @@ deferPatientOptions:
   domainOptionsReady:
     domain.domainOptionsReady,
 
-    patientOptionsDeferred:
-  domain.patientOptionsDeferred,
+      patientOptionsDeferred:
+    domain.patientOptionsDeferred,
+
+  incomeArticlesByCategory:
+    domain.incomeArticlesByCategory,
 
   operationTypes:
     domain.operationTypes,
