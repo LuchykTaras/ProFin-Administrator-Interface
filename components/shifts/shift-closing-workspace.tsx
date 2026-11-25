@@ -137,9 +137,10 @@ function ShiftClosingForm({
   administrator
 }: Pick<Props, "branch" | "administrator">) {
   
-  const [shiftDate, setShiftDate] = useState("");
-  const [comment, setComment] = useState("");
-  const [checking, setChecking] = useState(false);
+ const [shiftDate, setShiftDate] = useState("");
+const [adminFullName, setAdminFullName] = useState("");
+const [comment, setComment] = useState("");
+const [checking, setChecking] = useState(false);
 
 
 const [snapshot, setSnapshot] =
@@ -260,11 +261,17 @@ function parseOpeningBalance(
 function buildReportDraft():
   ShiftReportSubmissionDraft | null {
 
+    const normalizedAdminFullName =
+    adminFullName.trim().replace(/\s+/g, " ");
+
   if (
     !snapshot ||
     snapshot.date !== shiftDate ||
     checking ||
-    completedKpis !== KPI.length
+    completedKpis !== KPI.length ||
+    normalizedAdminFullName.length < 2 ||
+    normalizedAdminFullName.length > 120 ||
+    /^[=+\-@]/.test(normalizedAdminFullName)
   ) {
     return null;
   }
@@ -365,8 +372,9 @@ function buildReportDraft():
     };
   }
 
-  const draft: ShiftReportSubmissionDraft = {
+   const draft: ShiftReportSubmissionDraft = {
     date: shiftDate,
+    adminFullName: normalizedAdminFullName,
     revision: snapshot.revision,
     metrics,
     accounts,
@@ -421,8 +429,21 @@ const submitReady =
   verifiedDraftFingerprint === draftFingerprint &&
   !officialReportSent;
 
-
 function checkFormLocally() {
+  const name =
+    adminFullName.trim().replace(/\s+/g, " ");
+
+  if (
+    name.length < 2 ||
+    name.length > 120 ||
+    /^[=+\-@]/.test(name)
+  ) {
+    setValidationStatus(
+      "Заповніть коректне ПІБ адміністратора."
+    );
+    return;
+  }
+
   if (!snapshot || snapshot.date !== shiftDate) {
     setValidationStatus(
       "Спочатку завантажте актуальні фінансові дані."
@@ -663,8 +684,34 @@ setShiftDate(event.target.value);
   );
 }}
 
-                  aria-label="Дата зміни"
+                                    aria-label="Дата зміни"
                 />
+
+                <div className={styles.adminNameField}>
+                  <label
+                    className={styles.fieldLabel}
+                    htmlFor="adminFullName"
+                  >
+                    ПІБ Адміна <span aria-hidden="true">*</span>
+                  </label>
+
+                  <input
+                    id="adminFullName"
+                    name="adminFullName"
+                    type="text"
+                    value={adminFullName}
+                    maxLength={120}
+                    required
+                    autoComplete="name"
+                    placeholder="Прізвище Ім'я По батькові"
+                    aria-required="true"
+                    onChange={event => {
+                      setAdminFullName(event.target.value);
+                      setVerifiedDraftFingerprint(null);
+                      setValidationStatus("");
+                    }}
+                  />
+                </div>
               </div>
               <div>
                 <label className={styles.fieldLabel} htmlFor="administrator">

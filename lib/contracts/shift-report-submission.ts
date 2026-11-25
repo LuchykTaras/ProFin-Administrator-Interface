@@ -37,6 +37,7 @@ export type ShiftReportAccountInput = {
 
 export type ShiftReportSubmissionDraft = {
   date: string;
+  adminFullName: string;
   revision: string;
 
   metrics: Record<

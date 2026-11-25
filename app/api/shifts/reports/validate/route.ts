@@ -585,10 +585,11 @@ export async function POST(request: Request) {
     const body =
       await requireJsonObject(request);
 
-    assertAllowedKeys(
+        assertAllowedKeys(
       body,
       new Set([
         "date",
+        "adminFullName",
         "revision",
         "metrics",
         "accounts",

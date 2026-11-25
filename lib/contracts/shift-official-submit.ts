@@ -37,6 +37,7 @@ export type ShiftAccountInput = {
 
 export type OfficialShiftSubmission = {
   date: string;
+  adminFullName: string;
   revision: string;
   metrics: Record<ShiftKpiKey, ShiftMetricInput>;
   accounts: Record<ShiftAccountName, ShiftAccountInput>;
@@ -118,7 +119,22 @@ function coreText(
     return fail(`Некоректний текст: ${field}.`);
   }
 
-  return value.trim();
+    return value.trim();
+}
+
+function coreAdminFullName(value: unknown): string {
+  const name = coreText(value, "adminFullName", 120)
+    .replace(/\s+/g, " ");
+
+  if (
+    name.length < 2 ||
+    name.length > 120 ||
+    /^[=+\-@]/.test(name)
+  ) {
+    return fail("ПІБ адміністратора обов'язкове.");
+  }
+
+  return name;
 }
 
 function coreDate(value: unknown): string {
@@ -274,8 +290,9 @@ export function parseOfficialShiftSubmission(
 ): OfficialShiftSubmission {
   const row = asObject(input);
 
-  exactKeys(row, [
+     exactKeys(row, [
     "date",
+    "adminFullName",
     "revision",
     "metrics",
     "accounts",
@@ -305,8 +322,9 @@ export function parseOfficialShiftSubmission(
   const confirmed =
     row.confirmInitialBalances as boolean;
 
-  return {
+   return {
     date: coreDate(row.date),
+    adminFullName: coreAdminFullName(row.adminFullName),
     revision: row.revision as string,
     metrics: parseMetrics(row.metrics),
     accounts: parseAccounts(row.accounts),

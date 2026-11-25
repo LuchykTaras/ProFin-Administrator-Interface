@@ -130,6 +130,32 @@ function comment(
   return value.trim();
 }
 
+function validateAdminFullName(value: unknown): string {
+  if (typeof value !== "string") {
+    return reject(
+      400,
+      "SHIFT_ADMIN_NAME_REQUIRED",
+      "Введіть ПІБ адміністратора."
+    );
+  }
+
+  const name = value.trim().replace(/\s+/g, " ");
+
+  if (
+    name.length < 2 ||
+    name.length > 120 ||
+    /^[=+\-@]/.test(name)
+  ) {
+    return reject(
+      400,
+      "SHIFT_ADMIN_NAME_INVALID",
+      "Некоректне ПІБ адміністратора."
+    );
+  }
+
+  return name;
+}
+
 function dateOnly(
   value: unknown,
   year: number
@@ -196,15 +222,18 @@ export function validateShiftReportSubmission(
     );
   }
 
-  const row = object(
+    const row = object(
     input,
-    ["date", "revision", "metrics", "accounts"],
+    ["date", "adminFullName", "revision", "metrics", "accounts"],
     [
       "initialBalances",
       "confirmInitialBalances",
       "comment"
     ]
   );
+
+  const adminFullName =
+    validateAdminFullName(row.adminFullName);
 
   const date = dateOnly(row.date, context.activeYear);
 
@@ -440,6 +469,7 @@ export function validateShiftReportSubmission(
   return {
     draft: {
       date,
+      adminFullName,
       revision: snapshot.revision,
       metrics,
       accounts,

@@ -268,6 +268,7 @@ useEffect(() => {
 
       const officialReport = {
   date: draft.date,
+  adminFullName: draft.adminFullName,
   revision: draft.revision,
 
   metrics: Object.fromEntries(
@@ -411,7 +412,7 @@ setStatus(
       ? "✓ Звіт подано"
       : "✓ Google-перевірка успішна"
     : mode === "SUBMIT"
-      ? "✓ Звіт подано."
+      ? result.userMessage ?? "Подання не підтверджено."
       : result.userMessage ?? "Перевірку не завершено."
 );
 

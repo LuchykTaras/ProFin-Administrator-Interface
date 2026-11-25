@@ -76,6 +76,15 @@
 .metadata { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 28px; }
 .fieldLabel { display: block; color: #69727c; font-size: 13px; margin-bottom: 8px; }
 
+.adminNameField {
+  margin-top: 16px;
+}
+
+.adminNameField .fieldLabel span {
+  color: #d14343;
+  font-weight: 700;
+}
+
 .metadata input,
 .editFields input,
 .editFields textarea,
