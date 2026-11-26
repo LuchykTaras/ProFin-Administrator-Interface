@@ -25,6 +25,7 @@ type Props = {
   contextKey: string;
   branch: string;
   administrator: string;
+  role: "OWNER" | "SENIOR_ADMIN" | "CASHIER" | "SYSTEM";
 };
 
 const KPI = [
@@ -134,11 +135,20 @@ function accountValue(
 
 function ShiftClosingForm({
   branch,
-  administrator
-}: Pick<Props, "branch" | "administrator">) {
+  administrator,
+  role
+}: Pick<Props, "branch" | "administrator" | "role">) {
+  const fullNameLabel =
+    role === "OWNER"
+      ? "ПІБ Власника"
+      : "ПІБ Адміна";
   
  const [shiftDate, setShiftDate] = useState("");
 const [adminFullName, setAdminFullName] = useState("");
+
+const [adminNames, setAdminNames] =
+  useState<string[]>([]);
+
 const [comment, setComment] = useState("");
 const [checking, setChecking] = useState(false);
 
@@ -191,10 +201,38 @@ const [readStatus, setReadStatus] = useState(
   );
 
     useEffect(() => {
-    return () => activeRequest.current?.abort();
-  }, []);
+  return () => activeRequest.current?.abort();
+}, []);
 
-  
+useEffect(() => {
+  const controller = new AbortController();
+
+  void apiRequest<{ names: string[] }>(
+    "/api/shifts/admin-options",
+    {
+      method: "GET",
+      signal: controller.signal,
+      cache: "no-store"
+    }
+  )
+    .then(response => {
+      if (controller.signal.aborted) return;
+
+      setAdminNames(
+        response.data?.names ?? []
+      );
+    })
+    .catch(() => {
+      if (controller.signal.aborted) return;
+
+      setAdminNames([]);
+    });
+
+  return () => {
+    controller.abort();
+  };
+}, []);
+
 const completedKpis = KPI.filter(metric => {
   if (!snapshot) return false;
 
@@ -684,34 +722,66 @@ setShiftDate(event.target.value);
   );
 }}
 
-                                    aria-label="Дата зміни"
-                />
+  aria-label="Дата зміни"
+  />
 
-                <div className={styles.adminNameField}>
-                  <label
-                    className={styles.fieldLabel}
-                    htmlFor="adminFullName"
-                  >
-                    ПІБ Адміна <span aria-hidden="true">*</span>
-                  </label>
+<div className={styles.adminNameField}>
+  <label
+    className={styles.fieldLabel}
+    htmlFor="adminFullName"
+  >
+    {fullNameLabel} <span aria-hidden="true">*</span>
+  </label>
 
-                  <input
-                    id="adminFullName"
-                    name="adminFullName"
-                    type="text"
-                    value={adminFullName}
-                    maxLength={120}
-                    required
-                    autoComplete="name"
-                    placeholder="Прізвище Ім'я По батькові"
-                    aria-required="true"
-                    onChange={event => {
-                      setAdminFullName(event.target.value);
-                      setVerifiedDraftFingerprint(null);
-                      setValidationStatus("");
-                    }}
-                  />
-                </div>
+  <select
+    aria-label="Вибрати ПІБ зі списку"
+    value={
+      adminNames.includes(adminFullName)
+        ? adminFullName
+        : ""
+    }
+    disabled={adminNames.length === 0}
+    onChange={event => {
+      setAdminFullName(event.target.value);
+      setVerifiedDraftFingerprint(null);
+      setValidationStatus("");
+    }}
+  >
+    <option value="">
+      {adminNames.length === 0
+        ? "Завантаження списку..."
+        : "Оберіть ПІБ зі списку"}
+    </option>
+
+    {adminNames.map(name => (
+      <option key={name} value={name}>
+        {name}
+      </option>
+    ))}
+  </select>
+
+  <input
+    id="adminFullName"
+    name="adminFullName"
+    type="text"
+    value={adminFullName}
+    maxLength={120}
+    required
+    autoComplete="off"
+    placeholder="Або введіть ПІБ вручну"
+    aria-required="true"
+    style={{ marginTop: 10 }}
+    onChange={event => {
+      setAdminFullName(event.target.value);
+      setVerifiedDraftFingerprint(null);
+      setValidationStatus("");
+    }}
+  />
+
+  <span className={styles.statusLine}>
+    Виберіть зі списку або введіть ПІБ самостійно.
+  </span>
+</div>
               </div>
               <div>
                 <label className={styles.fieldLabel} htmlFor="administrator">
@@ -1230,7 +1300,8 @@ export function ShiftClosingWorkspace({
   activeYear,
   contextKey,
   branch,
-  administrator
+  administrator,
+  role
 }: Props) {
   const [tab, setTab] = useState<"form" | "history">("form");
 
@@ -1268,10 +1339,11 @@ export function ShiftClosingWorkspace({
       >
         {tab === "form" && (
           <ShiftClosingForm
-            key={contextKey}
-            branch={branch}
-            administrator={administrator}
-          />
+         key={contextKey}
+         branch={branch}
+         administrator={administrator}
+         role={role}
+/>
         )}
       </div>
       <div

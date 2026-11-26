@@ -2607,16 +2607,17 @@ onAdapterReady={
   active === "shift-close" &&
   (
     <ShiftClosingWorkspace
-      active={active === "shift-close"}
-      activeYear={context.activeYear}
-      contextKey={[
-        context.projectId,
-        context.locationId,
-        context.activeYear
-      ].join(":")}
-      branch={getLocationDisplayName(context.locationName)}
-      administrator={context.displayName}
-    />
+  active={active === "shift-close"}
+  activeYear={context.activeYear}
+  contextKey={[
+    context.projectId,
+    context.locationId,
+    context.activeYear
+  ].join(":")}
+  branch={getLocationDisplayName(context.locationName)}
+  administrator={context.displayName}
+  role={context.role}
+/>
   )
 }
 
