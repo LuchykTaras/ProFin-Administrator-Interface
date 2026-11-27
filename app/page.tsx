@@ -102,6 +102,8 @@ import {
   ShiftClosingWorkspace
 } from "@/components/shifts/shift-closing-workspace";
 
+import { getLocationDisplayName } from "@/lib/display-names";
+
 
 type NavKey =
   | "cash"
@@ -530,15 +532,6 @@ function QuickAction({
       </span>
     </button>
   );
-}
-
-
-function getLocationDisplayName(
-  locationName: string
-): string {
-  return locationName.trim() === "Основна"
-    ? "Бабурка"
-    : locationName;
 }
 
 
