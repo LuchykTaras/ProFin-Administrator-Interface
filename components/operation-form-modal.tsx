@@ -20,6 +20,7 @@ import {
 } from "react";
 
 import { UkrainianDatePicker } from "@/components/ukrainian-date-picker";
+import { getBankDisplayName } from "@/lib/display-names";
 
 import {
   ApiClientError,
@@ -583,7 +584,7 @@ function FieldControl({
                   }
                 >
                   {
-                    option.label
+                    getBankDisplayName(option.label)
                   }
                 </option>
               )
@@ -839,7 +840,7 @@ function FormSection({
                 >
                   <span>
                     {
-                      field.label
+                      getBankDisplayName(field.label)
                     }
 
 
