@@ -1,6 +1,8 @@
 
 "use client";
 
+import { getBankDisplayName } from "@/lib/display-names";
+
 import {
   useEffect,
   useState
@@ -231,7 +233,7 @@ function ReportDetails({
                 .map(([key, value]) => (
                   <div key={key}>
                     <span>{key}</span>
-                    <strong>{String(value)}</strong>
+                    <strong>{key === "Рахунок" ? getBankDisplayName(String(value), report.shiftDate) : String(value)}</strong>
                   </div>
                 ))}
             </div>
