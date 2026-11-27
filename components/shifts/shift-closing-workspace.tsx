@@ -17,6 +17,8 @@ import type {
   ShiftReportSubmissionDraft
 } from "@/lib/contracts/shift-report-submission";
 
+import { getBankDisplayName } from "@/lib/display-names";
+
 import styles from "./shift-closing-workspace.module.css";
 
 type Props = {
@@ -82,7 +84,7 @@ type ShiftAclData = {
 
 const ACCOUNTS = [
   { key: "cash", name: "Каса, грн", title: "Каса" },
-  { key: "abank", name: "Рахунок А-Банк, грн", title: "А-Банк" },
+  { key: "abank", name: "Рахунок А-Банк, грн", title: "Приват банк" },
   { key: "mono", name: "Рахунок Моно, грн", title: "Моно" },
     { key: "safe", name: "Сейф", title: "Сейф" }
 ] as const;
@@ -997,7 +999,7 @@ setShiftDate(event.target.value);
     {ACCOUNTS.map(account => (
       <div key={account.key}>
         <label htmlFor={`initial_${account.key}`}>
-          {account.name}
+          {getBankDisplayName(account.name)}
         </label>
 
         <input
