@@ -1,6 +1,7 @@
 "use client";
 
 import { UkrainianDatePicker } from "@/components/ukrainian-date-picker";
+import { getLocationDisplayName } from "@/lib/display-names";
 
 import {
   useCallback,
@@ -307,7 +308,7 @@ function SentTransfersTable({
                   <small>{item.sourceLotId}</small>
                 </td>
 
-                <td>{item.destinationBranch}</td>
+                <td>{getLocationDisplayName(item.destinationBranch)}</td>
 
                 <td className={css.quantity}>
                   {formatQuantity(item.quantity)}
@@ -400,7 +401,7 @@ function IncomingTransfersTable({
                   </small>
                 </td>
 
-                <td>{item.sourceBranch}</td>
+                <td>{getLocationDisplayName(item.sourceBranch)}</td>
 
                 <td className={css.quantity}>
                   {formatQuantity(item.quantity)}
@@ -566,7 +567,7 @@ function TransferDialog({
                 key={route.routeId}
                 value={route.routeId}
               >
-                {route.counterpartyLocationName}
+                {getLocationDisplayName(route.counterpartyLocationName)}
               </option>
             ))}
           </select>
@@ -610,7 +611,7 @@ function TransferDialog({
 
             <p>
               Передача: {formatQuantity(plan.quantity)} од.
-              з «{plan.sourceBranch}» до «{plan.destinationBranch}».
+              з «{getLocationDisplayName(plan.sourceBranch)}» до «{getLocationDisplayName(plan.destinationBranch)}».
             </p>
 
             <p>
@@ -722,7 +723,7 @@ function ConfirmationDialog({
           <strong>{item.inventoryName}</strong>
 
           <span>Звідки</span>
-          <strong>{item.sourceBranch}</strong>
+          <strong>{getLocationDisplayName(item.sourceBranch)}</strong>
 
           <span>Кількість</span>
           <strong>{formatQuantity(item.quantity)}</strong>
