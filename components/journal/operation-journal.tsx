@@ -1,5 +1,7 @@
 "use client";
 
+import { getBankDisplayName } from "@/lib/display-names";
+
 import {
   useCallback,
   useEffect,
@@ -176,7 +178,8 @@ function formatCellValue(
   column:
     OperationJournalColumn,
   value:
-    OperationJournalCellValue
+    OperationJournalCellValue,
+  operationDate?: string | null
 ): string {
   if (
     value === null ||
@@ -215,9 +218,10 @@ function formatCellValue(
     return formatted;
   }
 
-  return String(
-    value
-  );
+  const rendered = String(value);
+  return column.key === "account" || column.key === "targetAccount"
+    ? getBankDisplayName(rendered, operationDate)
+    : rendered;
 }
 
 
@@ -1566,7 +1570,8 @@ if (delta.rows.length === 0) {
                       row.values[
                         column.key
                       ] ??
-                      null
+                      null,
+                      String(row.values.transactionDate ?? "")
                     )
                   )
               )
@@ -2119,13 +2124,15 @@ if (delta.rows.length === 0) {
                             title={
                               formatCellValue(
                                 column,
-                                value
+                                value,
+                                String(row.values.transactionDate ?? "")
                               )
                             }
                           >
                             {formatCellValue(
                               column,
-                              value
+                              value,
+                              String(row.values.transactionDate ?? "")
                             )}
                           </td>
                         );
