@@ -15,6 +15,8 @@ import {
   useState
 } from "react";
 
+import { getLocationDisplayName } from "@/lib/display-names";
+
 import {
   getApiErrorMessage
 } from "@/lib/client/api-client";
@@ -510,7 +512,7 @@ export function Inventory({
 
               <span>
                 {
-                  data.locationName
+                  getLocationDisplayName(data.locationName)
                 }
               </span>
             </div>
@@ -896,7 +898,7 @@ export function Inventory({
                                       />
 
                                       {
-                                        item.locationName
+                                        getLocationDisplayName(item.locationName)
                                       }
                                     </span>
                                   </td>
