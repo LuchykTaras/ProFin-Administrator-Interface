@@ -84,7 +84,7 @@ type ShiftAclData = {
 
 const ACCOUNTS = [
   { key: "cash", name: "Каса, грн", title: "Каса" },
-  { key: "abank", name: "Рахунок А-Банк, грн", title: "Приват банк" },
+  { key: "abank", name: "Рахунок А-Банк, грн", title: "А-Банк" },
   { key: "mono", name: "Рахунок Моно, грн", title: "Моно" },
     { key: "safe", name: "Сейф", title: "Сейф" }
 ] as const;
@@ -999,7 +999,7 @@ setShiftDate(event.target.value);
     {ACCOUNTS.map(account => (
       <div key={account.key}>
         <label htmlFor={`initial_${account.key}`}>
-          {getBankDisplayName(account.name)}
+          {getBankDisplayName(account.name, shiftDate)}
         </label>
 
         <input
@@ -1061,7 +1061,7 @@ setShiftDate(event.target.value);
           {ACCOUNTS.map(account => (
             <div className={`${styles.card} ${styles.account}`} key={account.key}>
               <div className={styles.cardTop}>
-                <h3 className={styles.accountTitle}>{account.title}</h3>
+                <h3 className={styles.accountTitle}>{getBankDisplayName(account.title, shiftDate)}</h3>
                 <span className={styles.statusPill}>Не перевірено</span>
               </div>
               <div className={styles.accountBalanceRow}>
