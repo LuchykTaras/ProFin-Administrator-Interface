@@ -524,7 +524,7 @@ function checkFormLocally() {
 
   if (invalidAccount) {
     setValidationStatus(
-      `Перевірте фактичний залишок: ${invalidAccount.title}.`
+      `Перевірте фактичний залишок: ${getBankDisplayName(invalidAccount.title, shiftDate)}.`
     );
     return;
   }
