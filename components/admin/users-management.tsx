@@ -8,6 +8,8 @@ import {
   type FormEvent
 } from "react";
 
+import { getLocationDisplayName } from "@/lib/display-names";
+
 import {
   Ban,
   CheckCircle2,
@@ -1588,7 +1590,7 @@ export default function UsersManagement() {
                       ? user.locations
                           .map(
                             location =>
-                              location.locationName
+                              getLocationDisplayName(location.locationName)
                           )
                           .join(
                             ", "
@@ -2366,8 +2368,7 @@ function LocationPicker({
                   }}
                 >
                   {
-                    location
-                      .locationName
+                    getLocationDisplayName(location.locationName)
                   }
                 </span>
               </label>
